@@ -247,8 +247,32 @@ jobs:
             nginx -s reload
 
             curl -fsS --retry 10 --retry-delay 3 --retry-connrefused "http://127.0.0.1:${APP_PORT}" >/dev/null
-            curl -kfsS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://radar.yifan1.com/site | grep -q '今日精选机会'
-            curl -kfsS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://admin-radar.yifan1.com/settings | grep -q '运行与推送配置'
+
+            PUBLIC_RESPONSE=$(mktemp)
+            ADMIN_RESPONSE=$(mktemp)
+            trap 'rm -f "$PUBLIC_RESPONSE" "$ADMIN_RESPONSE"' EXIT
+
+            curl -kfsS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://radar.yifan1.com/site > "$PUBLIC_RESPONSE"
+            python - <<'PY' "$PUBLIC_RESPONSE"
+from pathlib import Path
+import sys
+text = Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')
+if '今日精选机会' not in text:
+    print('public site verification failed')
+    print(text[:500])
+    raise SystemExit(1)
+PY
+
+            curl -kfsS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://admin-radar.yifan1.com/settings > "$ADMIN_RESPONSE"
+            python - <<'PY' "$ADMIN_RESPONSE"
+from pathlib import Path
+import sys
+text = Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')
+if '运行与推送配置' not in text:
+    print('admin site verification failed')
+    print(text[:500])
+    raise SystemExit(1)
+PY
 
       - name: Verify public site from runner
         run: |
