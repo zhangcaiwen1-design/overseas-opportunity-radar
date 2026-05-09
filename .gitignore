@@ -1,0 +1,9 @@
+node_modules/
+dist/
+output/
+.next/
+.worktrees/
+.claude/
+.env
+.env.local
+tsconfig.tsbuildinfo

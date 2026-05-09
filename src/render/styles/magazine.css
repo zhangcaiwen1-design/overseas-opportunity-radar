@@ -1,0 +1,156 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f4efe6;
+  color: #1d1b17;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.magazine-page {
+  min-height: 100vh;
+  padding: 48px;
+  box-sizing: border-box;
+}
+
+.magazine-article {
+  max-width: 920px;
+  margin: 0 auto;
+  background: rgba(255, 252, 246, 0.9);
+  border: 1px solid #d8cdbd;
+  box-shadow: 0 24px 60px rgba(52, 38, 20, 0.12);
+  padding: 56px 64px;
+}
+
+.article-cover {
+  display: grid;
+  gap: 24px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 60px;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+
+.hero__dek {
+  margin: 0;
+  max-width: 760px;
+  font-size: 22px;
+  line-height: 1.7;
+  color: #5c4934;
+}
+
+.kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #a06d3b;
+  font-size: 12px;
+}
+
+.article-hero-image img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border: 1px solid #d8cdbd;
+  box-shadow: 0 22px 48px rgba(52, 38, 20, 0.14);
+}
+
+/* optional-materials:start */
+.article-collage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.article-collage__image,
+.material-figure__image {
+  display: block;
+  width: 100%;
+  border: 1px solid #d8cdbd;
+  object-fit: cover;
+  box-shadow: 0 14px 32px rgba(52, 38, 20, 0.1);
+}
+
+.article-collage__image {
+  aspect-ratio: 4 / 3;
+}
+
+.evidence-guide {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(160, 109, 59, 0.24);
+}
+
+.evidence-guide__intro {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.evidence-guide__intro p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.65;
+  color: #5c4934;
+}
+
+.evidence-guide__label {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #a06d3b;
+  font-size: 12px;
+}
+
+.material-figure {
+  margin: 32px 0 0;
+}
+
+.material-figure__image {
+  max-height: 520px;
+}
+
+.material-figure__caption {
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8e6a43;
+}
+/* optional-materials:end */
+
+.section {
+  margin-top: 40px;
+}
+
+.section h2 {
+  margin: 0 0 10px;
+  font-size: 24px;
+}
+
+.section p,
+.section li {
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+.section p + p,
+.section ul + p {
+  margin-top: 14px;
+}
+
+.section ul {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 10px;
+}
