@@ -133,6 +133,43 @@ jobs:
               fi
             }
 
+            ensure_node_runtime() {
+              if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+                return
+              fi
+
+              if [ -s "$NVM_DIR/nvm.sh" ]; then
+                . "$NVM_DIR/nvm.sh"
+                nvm install 20
+                nvm use 20
+              elif command -v apt-get >/dev/null 2>&1; then
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update
+                apt-get install -y ca-certificates curl gnupg
+                install -m 0755 -d /etc/apt/keyrings
+                curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+                chmod a+r /etc/apt/keyrings/nodesource.gpg
+                . /etc/os-release
+                echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+                apt-get update
+                apt-get install -y nodejs
+              elif command -v dnf >/dev/null 2>&1; then
+                dnf module reset -y nodejs || true
+                dnf module enable -y nodejs:20 || true
+                dnf install -y nodejs npm
+              elif command -v yum >/dev/null 2>&1; then
+                yum install -y nodejs npm
+              else
+                echo "Unable to install nodejs on target server" >&2
+                exit 1
+              fi
+
+              if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+                echo "node/npm installation did not succeed" >&2
+                exit 1
+              fi
+            }
+
             restart_nginx() {
               if command -v systemctl >/dev/null 2>&1; then
                 systemctl enable nginx || true
@@ -150,6 +187,10 @@ jobs:
             ensure_command nginx nginx
             ensure_command certbot certbot
             ensure_command python3 python3
+
+            echo '=== stage: ensure node runtime ==='
+            export NVM_DIR="$HOME/.nvm"
+            ensure_node_runtime
 
             echo '=== stage: sync app files ==='
             rsync -a --delete --exclude '.env.production' "$UPLOAD_DIR"/ "$APP_DIR"/
@@ -175,19 +216,8 @@ jobs:
             ADMIN_SECRET=${ADMIN_SECRET}
             EOF
 
-            export NVM_DIR="$HOME/.nvm"
             if [ -s "$NVM_DIR/nvm.sh" ]; then
               . "$NVM_DIR/nvm.sh"
-            fi
-
-            if ! command -v node >/dev/null 2>&1; then
-              echo "node is required on the target server" >&2
-              exit 1
-            fi
-
-            if ! command -v npm >/dev/null 2>&1; then
-              echo "npm is required on the target server" >&2
-              exit 1
             fi
 
             node -v
