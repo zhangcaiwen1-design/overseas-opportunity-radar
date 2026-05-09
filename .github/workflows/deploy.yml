@@ -88,7 +88,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           sudo apt-get update
-          sudo apt-get install -y sshpass openssh-client
+          sudo apt-get install -y sshpass openssh-client netcat-openbsd
 
       - name: Deploy over raw SSH
         env:
@@ -106,11 +106,12 @@ jobs:
               if "$@"; then
                 return 0
               fi
+              local exit_code=$?
               if [ "$attempt" -ge "$max_attempts" ]; then
-                echo "command failed after ${max_attempts} attempts: $*" >&2
-                return 1
+                echo "command failed after ${max_attempts} attempts with exit ${exit_code}: $*" >&2
+                return "$exit_code"
               fi
-              echo "attempt ${attempt}/${max_attempts} failed, retrying in 5s: $*" >&2
+              echo "attempt ${attempt}/${max_attempts} failed with exit ${exit_code}, retrying in 5s: $*" >&2
               attempt=$((attempt + 1))
               sleep 5
             done
@@ -123,12 +124,22 @@ jobs:
             -o PreferredAuthentications=password
             -o PubkeyAuthentication=no
             -o ConnectTimeout=20
+            -o ConnectionAttempts=1
             -o ServerAliveInterval=15
             -o ServerAliveCountMax=3
+            -o LogLevel=ERROR
           )
           SSH_OPTS=(-p "$SERVER_PORT" "${COMMON_SSH_OPTS[@]}")
           SCP_OPTS=(-P "$SERVER_PORT" "${COMMON_SSH_OPTS[@]}")
           REMOTE_TARGET="${SERVER_USER}@${SERVER_HOST}"
+
+          echo '=== stage: network diagnostics ==='
+          echo "target=${SERVER_HOST}:${SERVER_PORT} user=${SERVER_USER}"
+          getent ahostsv4 "$SERVER_HOST" || true
+          nc -vz -w 5 "$SERVER_HOST" "$SERVER_PORT"
+
+          echo '=== stage: ssh banner probe ==='
+          timeout 10 ssh -vvv -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -o ConnectionAttempts=1 -p "$SERVER_PORT" "$REMOTE_TARGET" exit || true
 
           echo '=== stage: prepare remote upload directory ==='
           retry sshpass -e ssh "${SSH_OPTS[@]}" "$REMOTE_TARGET" "rm -rf /tmp/overseas-opportunity-radar-deploy && mkdir -p /tmp/overseas-opportunity-radar-deploy"
