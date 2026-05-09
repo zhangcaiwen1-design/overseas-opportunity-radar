@@ -259,6 +259,10 @@ jobs:
 
             echo '=== deploy host ==='
             hostname
+            echo '=== host ips ==='
+            hostname -I || true
+            curl -fsS https://api.ipify.org || true
+            printf '\n'
             echo '=== conf.d files ==='
             ls -l /etc/nginx/conf.d || true
             echo '=== radar config file ==='
