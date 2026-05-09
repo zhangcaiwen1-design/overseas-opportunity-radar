@@ -128,10 +128,16 @@ echo '=== node runtime versions ==='
 node -v
 npm -v
 
-echo '=== stage: build app ==='
+echo '=== stage: verify standalone bundle ==='
 cd "$APP_DIR"
-npm ci
-npm run build
+if [ ! -f "$APP_DIR/server.js" ]; then
+  echo "standalone server.js not found in uploaded bundle" >&2
+  exit 1
+fi
+if [ ! -d "$APP_DIR/.next/static" ]; then
+  echo "standalone .next/static not found in uploaded bundle" >&2
+  exit 1
+fi
 
 echo '=== stage: ensure pm2 ==='
 if ! command -v pm2 >/dev/null 2>&1; then
@@ -140,7 +146,8 @@ fi
 
 echo '=== stage: start app ==='
 export NODE_ENV=production
-pm2 restart "$PROCESS_NAME" --update-env || pm2 start npm --name "$PROCESS_NAME" -- run start -- --port "$APP_PORT"
+export PORT="$APP_PORT"
+pm2 restart "$PROCESS_NAME" --update-env || pm2 start "$APP_DIR/server.js" --name "$PROCESS_NAME"
 pm2 save
 
 echo '=== stage: bootstrap nginx http ==='

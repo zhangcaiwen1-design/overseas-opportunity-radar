@@ -51,8 +51,11 @@ jobs:
           set -Eeuo pipefail
           rm -rf .deploy-tmp
           mkdir -p .deploy-tmp
-          cp package.json package-lock.json next.config.ts next-env.d.ts tsconfig.json .deploy-tmp/
-          cp -R app src scripts .deploy-tmp/
+          cp package.json package-lock.json .deploy-tmp/
+          cp -R scripts .deploy-tmp/
+          cp -R .next/standalone/. .deploy-tmp/
+          mkdir -p .deploy-tmp/.next
+          cp -R .next/static .deploy-tmp/.next/static
           if [ -d public ]; then
             cp -R public .deploy-tmp/public
           fi
