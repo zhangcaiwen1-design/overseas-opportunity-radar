@@ -84,41 +84,60 @@ jobs:
           Path('.deploy-tmp/.env.production').write_text('\n'.join(env_lines) + '\n', encoding='utf-8')
           PY
 
-      - name: Prepare remote upload directory
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script_stop: true
-          script: |
-            set -Eeuo pipefail
-            rm -rf /tmp/overseas-opportunity-radar-deploy
-            mkdir -p /tmp/overseas-opportunity-radar-deploy
+      - name: Install SSH client tools
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y sshpass openssh-client
 
-      - name: Upload deployment files
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          source: .deploy-tmp
-          target: /tmp/overseas-opportunity-radar-deploy
+      - name: Deploy over raw SSH
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
 
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script_stop: true
-          script: |
-            set -Eeuo pipefail
-            chmod +x /tmp/overseas-opportunity-radar-deploy/.deploy-tmp/scripts/deploy-remote.sh
-            /tmp/overseas-opportunity-radar-deploy/.deploy-tmp/scripts/deploy-remote.sh
+          retry() {
+            local attempt=1
+            local max_attempts=5
+            while true; do
+              if "$@"; then
+                return 0
+              fi
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "command failed after ${max_attempts} attempts: $*" >&2
+                return 1
+              fi
+              echo "attempt ${attempt}/${max_attempts} failed, retrying in 5s: $*" >&2
+              attempt=$((attempt + 1))
+              sleep 5
+            done
+          }
+
+          export SSHPASS="$SERVER_PASSWORD"
+          COMMON_SSH_OPTS=(
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+            -o PreferredAuthentications=password
+            -o PubkeyAuthentication=no
+            -o ConnectTimeout=20
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          SSH_OPTS=(-p "$SERVER_PORT" "${COMMON_SSH_OPTS[@]}")
+          SCP_OPTS=(-P "$SERVER_PORT" "${COMMON_SSH_OPTS[@]}")
+          REMOTE_TARGET="${SERVER_USER}@${SERVER_HOST}"
+
+          echo '=== stage: prepare remote upload directory ==='
+          retry sshpass -e ssh "${SSH_OPTS[@]}" "$REMOTE_TARGET" "rm -rf /tmp/overseas-opportunity-radar-deploy && mkdir -p /tmp/overseas-opportunity-radar-deploy"
+
+          echo '=== stage: upload deployment files ==='
+          retry sshpass -e scp "${SCP_OPTS[@]}" -r .deploy-tmp "$REMOTE_TARGET:/tmp/overseas-opportunity-radar-deploy/"
+
+          echo '=== stage: deploy on server ==='
+          retry sshpass -e ssh "${SSH_OPTS[@]}" "$REMOTE_TARGET" "chmod +x /tmp/overseas-opportunity-radar-deploy/.deploy-tmp/scripts/deploy-remote.sh && /tmp/overseas-opportunity-radar-deploy/.deploy-tmp/scripts/deploy-remote.sh"
 
       - name: Verify public site from runner
         run: |
