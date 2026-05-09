@@ -134,37 +134,49 @@ jobs:
             }
 
             ensure_node_runtime() {
-              if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+              current_node_major=''
+              if command -v node >/dev/null 2>&1; then
+                current_node_major=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || true)
+              fi
+              if [ -n "$current_node_major" ] && [ "$current_node_major" -ge 20 ] && command -v npm >/dev/null 2>&1; then
                 return
               fi
 
               if [ -s "$NVM_DIR/nvm.sh" ]; then
                 . "$NVM_DIR/nvm.sh"
                 nvm install 20
+                nvm alias default 20
                 nvm use 20
-              elif command -v apt-get >/dev/null 2>&1; then
-                export DEBIAN_FRONTEND=noninteractive
-                apt-get update
-                apt-get install -y ca-certificates curl gnupg
-                install -m 0755 -d /etc/apt/keyrings
-                curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-                chmod a+r /etc/apt/keyrings/nodesource.gpg
-                . /etc/os-release
-                echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
-                apt-get update
-                apt-get install -y nodejs
-              elif command -v dnf >/dev/null 2>&1; then
-                dnf module reset -y nodejs || true
-                dnf module enable -y nodejs:20 || true
-                dnf install -y nodejs npm
-              elif command -v yum >/dev/null 2>&1; then
-                yum install -y nodejs npm
               else
-                echo "Unable to install nodejs on target server" >&2
-                exit 1
+                NODE_VERSION=v20.18.0
+                NODE_ROOT=/usr/local/lib/nodejs
+                arch=$(uname -m)
+                case "$arch" in
+                  x86_64|amd64)
+                    node_arch=x64
+                    ;;
+                  aarch64|arm64)
+                    node_arch=arm64
+                    ;;
+                  *)
+                    echo "Unsupported architecture for Node.js: $arch" >&2
+                    exit 1
+                    ;;
+                esac
+                temp_dir=$(mktemp -d)
+                curl -fsSL "https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${node_arch}.tar.gz" -o "$temp_dir/node.tar.gz"
+                mkdir -p /usr/local/lib
+                tar -xzf "$temp_dir/node.tar.gz" -C /usr/local/lib
+                ln -sfn "/usr/local/lib/node-${NODE_VERSION}-linux-${node_arch}" "$NODE_ROOT"
+                ln -sfn "$NODE_ROOT/bin/node" /usr/local/bin/node
+                ln -sfn "$NODE_ROOT/bin/npm" /usr/local/bin/npm
+                ln -sfn "$NODE_ROOT/bin/npx" /usr/local/bin/npx
+                rm -rf "$temp_dir"
+                hash -r
               fi
 
-              if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+              current_node_major=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || true)
+              if [ -z "$current_node_major" ] || [ "$current_node_major" -lt 20 ] || ! command -v npm >/dev/null 2>&1; then
                 echo "node/npm installation did not succeed" >&2
                 exit 1
               fi
@@ -220,6 +232,7 @@ jobs:
               . "$NVM_DIR/nvm.sh"
             fi
 
+            echo '=== node runtime versions ==='
             node -v
             npm -v
 
