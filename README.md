@@ -60,7 +60,7 @@ ADMIN_SECRET
 说明：
 - `SERVER_HOST`：阿里云服务器公网 IP 或域名
 - `SERVER_PORT`：SSH 端口，默认一般是 `22`
-- `SERVER_USER`：SSH 登录用户。当前 workflow 默认把项目部署到 `/home/admin/overseas-opportunity-radar`，所以最省事的做法是直接使用 `admin` 用户；如果你用别的用户，请同步检查这个目录是否可写，并且这个部署用户还要能执行 `nginx -s reload`，否则 Actions 会在 nginx 重载步骤失败
+- `SERVER_USER`：SSH 登录用户。你当前这台阿里云服务器就按 `root` 填。当前 workflow 默认把项目部署到 `/root/overseas-opportunity-radar`，所以最省事的做法就是直接使用 `root`；如果你以后改成别的用户，请同步检查这个目录是否可写，并且这个部署用户还要能执行 `nginx -s reload`，否则 Actions 会在 nginx 重载步骤失败
 - `SERVER_PASSWORD`：上面这个 SSH 用户的登录密码
 - `NEXT_PUBLIC_APP_URL`：正式环境请填 `https://radar.yifan1.com`
 
@@ -119,7 +119,7 @@ rsync --version
 当前 workflow 在服务器里写死了下面这些值：
 
 ```bash
-APP_DIR=/home/admin/overseas-opportunity-radar
+APP_DIR=/root/overseas-opportunity-radar
 PROCESS_NAME=overseas-opportunity-radar
 APP_PORT=3001
 ```
@@ -127,13 +127,10 @@ APP_PORT=3001
 先执行：
 
 ```bash
-sudo mkdir -p /home/admin/overseas-opportunity-radar
-sudo chown -R admin:admin /home/admin/overseas-opportunity-radar
+mkdir -p /root/overseas-opportunity-radar
 ```
 
-如果你的服务器用户不是 `admin`，有两种做法，二选一：
-1. 仍然创建 `/home/admin/overseas-opportunity-radar` 并保证部署用户可写
-2. 先改 workflow 里的 `APP_DIR`，再开始正式部署
+如果你以后不想继续用 `root` 部署，也可以改回别的目录，但要记得同步改 workflow 里的 `APP_DIR`。
 
 #### 3.4 域名先解析到服务器
 把 `radar.yifan1.com` 的 A 记录先指向这台阿里云服务器公网 IP。

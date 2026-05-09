@@ -92,7 +92,7 @@ jobs:
           script: |
             set -Eeuo pipefail
 
-            APP_DIR=/home/admin/overseas-opportunity-radar
+            APP_DIR=/root/overseas-opportunity-radar
             UPLOAD_DIR=/tmp/overseas-opportunity-radar-deploy/.deploy-tmp
             PROCESS_NAME=overseas-opportunity-radar
             APP_PORT=3001
