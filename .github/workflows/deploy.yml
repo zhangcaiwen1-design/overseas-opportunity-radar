@@ -246,6 +246,15 @@ jobs:
             nginx -t
             nginx -s reload
 
+            echo '=== deploy host ==='
+            hostname
+            echo '=== conf.d files ==='
+            ls -l /etc/nginx/conf.d || true
+            echo '=== radar config file ==='
+            sed -n '1,220p' /etc/nginx/conf.d/overseas-opportunity-radar.conf || true
+            echo '=== nginx -T radar/admin-radar excerpts ==='
+            nginx -T 2>&1 | grep -nE 'radar\.yifan1\.com|admin-radar\.yifan1\.com|server_name|listen 443|listen 80' || true
+
             curl -fsS --retry 10 --retry-delay 3 --retry-connrefused "http://127.0.0.1:${APP_PORT}" >/dev/null
 
             PUBLIC_RESPONSE=$(mktemp)
