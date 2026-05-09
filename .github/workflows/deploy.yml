@@ -246,11 +246,11 @@ jobs:
             nginx -t
             nginx -s reload
 
-            curl -fsS --retry 10 --retry-delay 3 --retry-connrefused "http://127.0.0.1:${APP_PORT}"
-            curl -fsS --retry 10 --retry-delay 3 --retry-connrefused https://radar.yifan1.com/site
-            curl -fsS --retry 10 --retry-delay 3 --retry-connrefused https://admin-radar.yifan1.com/settings
+            curl -fsS --retry 10 --retry-delay 3 --retry-connrefused "http://127.0.0.1:${APP_PORT}" >/dev/null
+            curl -kfsS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://radar.yifan1.com/site | grep -q '今日精选机会'
+            curl -kfsS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://admin-radar.yifan1.com/settings | grep -q '运行与推送配置'
 
       - name: Verify public site from runner
         run: |
           set -Eeuo pipefail
-          curl -fsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com
+          curl -kfsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com/site | grep -q '今日精选机会'
