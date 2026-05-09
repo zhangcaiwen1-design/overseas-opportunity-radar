@@ -1,0 +1,154 @@
+name: Deploy to Alibaba Cloud
+
+'on':
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies on runner
+        run: |
+          set -Eeuo pipefail
+          npm ci
+
+      - name: Build on runner
+        run: |
+          set -Eeuo pipefail
+          npm run build
+
+      - name: Prepare deployment bundle
+        run: |
+          set -Eeuo pipefail
+          rm -rf .deploy-tmp
+          mkdir -p .deploy-tmp
+          cp package.json package-lock.json next.config.ts next-env.d.ts tsconfig.json .deploy-tmp/
+          cp -R app src .deploy-tmp/
+          if [ -d public ]; then
+            cp -R public .deploy-tmp/public
+          fi
+
+      - name: Prepare remote upload directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script_stop: true
+          script: |
+            set -Eeuo pipefail
+            rm -rf /tmp/overseas-opportunity-radar-deploy
+            mkdir -p /tmp/overseas-opportunity-radar-deploy
+
+      - name: Upload deployment files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          source: .deploy-tmp
+          target: /tmp/overseas-opportunity-radar-deploy
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          CANDIDATE_TRANSLATION_MODEL: ${{ secrets.CANDIDATE_TRANSLATION_MODEL }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          WXPUSHER_APP_TOKEN: ${{ secrets.WXPUSHER_APP_TOKEN }}
+          WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+          RSS_FEEDS: ${{ secrets.RSS_FEEDS }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script_stop: true
+          envs: OPENAI_API_KEY,OPENAI_BASE_URL,CANDIDATE_TRANSLATION_MODEL,PEXELS_API_KEY,FEISHU_WEBHOOK_URL,WECOM_WEBHOOK_URL,WXPUSHER_APP_TOKEN,WXPUSHER_UID,RSS_FEEDS,NEXT_PUBLIC_SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_STORAGE_BUCKET,CRON_SECRET,NEXT_PUBLIC_APP_URL,ADMIN_SECRET
+          script: |
+            set -Eeuo pipefail
+
+            APP_DIR=/home/admin/overseas-opportunity-radar
+            UPLOAD_DIR=/tmp/overseas-opportunity-radar-deploy/.deploy-tmp
+            PROCESS_NAME=overseas-opportunity-radar
+            APP_PORT=3001
+
+            if [ ! -d "$UPLOAD_DIR" ]; then
+              echo "Upload directory not found: $UPLOAD_DIR" >&2
+              exit 1
+            fi
+
+            mkdir -p "$APP_DIR"
+
+            if ! command -v rsync >/dev/null 2>&1; then
+              echo "rsync is required on the target server" >&2
+              exit 1
+            fi
+
+            rsync -a --delete --exclude '.env.production' "$UPLOAD_DIR"/ "$APP_DIR"/
+
+            cat > "$APP_DIR/.env.production" <<EOF
+            OPENAI_API_KEY=${OPENAI_API_KEY}
+            OPENAI_BASE_URL=${OPENAI_BASE_URL}
+            CANDIDATE_TRANSLATION_MODEL=${CANDIDATE_TRANSLATION_MODEL}
+            PEXELS_API_KEY=${PEXELS_API_KEY}
+            FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL}
+            WECOM_WEBHOOK_URL=${WECOM_WEBHOOK_URL}
+            WXPUSHER_APP_TOKEN=${WXPUSHER_APP_TOKEN}
+            WXPUSHER_UID=${WXPUSHER_UID}
+            RSS_FEEDS=${RSS_FEEDS}
+            OUTPUT_ROOT=output
+            TIMEZONE=Asia/Shanghai
+            NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+            SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+            SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET}
+            CRON_SECRET=${CRON_SECRET}
+            NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+            ADMIN_SECRET=${ADMIN_SECRET}
+            EOF
+
+            cd "$APP_DIR"
+            npm ci
+            npm run build
+
+            if ! command -v pm2 >/dev/null 2>&1; then
+              npm install -g pm2
+            fi
+
+            export NODE_ENV=production
+            pm2 restart "$PROCESS_NAME" --update-env || pm2 start npm --name "$PROCESS_NAME" -- run start -- --port "$APP_PORT"
+            pm2 save
+
+            nginx -s reload
+
+            curl -fsS --retry 10 --retry-delay 3 --retry-connrefused "http://127.0.0.1:${APP_PORT}"
+            curl -fsS --retry 10 --retry-delay 3 --retry-connrefused https://radar.yifan1.com
+
+      - name: Verify public site from runner
+        run: |
+          set -Eeuo pipefail
+          curl -fsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com
