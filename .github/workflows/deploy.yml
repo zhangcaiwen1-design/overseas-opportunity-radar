@@ -271,6 +271,7 @@ jobs:
 
             ADMIN_CURL_EXIT=0
             ADMIN_STATUS=$(curl -ksS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused -o "$ADMIN_RESPONSE" -w '%{http_code}' https://admin-radar.yifan1.com/settings) || ADMIN_CURL_EXIT=$?
+            echo "verification summary: public(curl_exit=$PUBLIC_CURL_EXIT status=${PUBLIC_STATUS:-n/a}) admin(curl_exit=$ADMIN_CURL_EXIT status=${ADMIN_STATUS:-n/a})"
             if [ "$ADMIN_CURL_EXIT" -ne 0 ] || [ "$ADMIN_STATUS" != '200' ] || ! grep -q 'Settings' "$ADMIN_RESPONSE"; then
               echo "admin site verification failed (curl_exit=$ADMIN_CURL_EXIT status=${ADMIN_STATUS:-n/a})"
               python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$ADMIN_RESPONSE"
