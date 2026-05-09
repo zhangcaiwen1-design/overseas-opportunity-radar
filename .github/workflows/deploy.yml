@@ -252,16 +252,18 @@ jobs:
             ADMIN_RESPONSE=$(mktemp)
             trap 'rm -f "$PUBLIC_RESPONSE" "$ADMIN_RESPONSE"' EXIT
 
-            PUBLIC_STATUS=$(curl -ksS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused -o "$PUBLIC_RESPONSE" -w '%{http_code}' https://radar.yifan1.com/site)
-            if [ "$PUBLIC_STATUS" != '200' ] || ! grep -q '今日精选机会' "$PUBLIC_RESPONSE"; then
-              echo "public site verification failed (status=$PUBLIC_STATUS)"
+            PUBLIC_CURL_EXIT=0
+            PUBLIC_STATUS=$(curl -ksS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused -o "$PUBLIC_RESPONSE" -w '%{http_code}' https://radar.yifan1.com/site) || PUBLIC_CURL_EXIT=$?
+            if [ "$PUBLIC_CURL_EXIT" -ne 0 ] || [ "$PUBLIC_STATUS" != '200' ] || ! grep -q 'Public Site' "$PUBLIC_RESPONSE"; then
+              echo "public site verification failed (curl_exit=$PUBLIC_CURL_EXIT status=${PUBLIC_STATUS:-n/a})"
               python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$PUBLIC_RESPONSE"
               exit 1
             fi
 
-            ADMIN_STATUS=$(curl -ksS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused -o "$ADMIN_RESPONSE" -w '%{http_code}' https://admin-radar.yifan1.com/settings)
-            if [ "$ADMIN_STATUS" != '200' ] || ! grep -q '运行与推送配置' "$ADMIN_RESPONSE"; then
-              echo "admin site verification failed (status=$ADMIN_STATUS)"
+            ADMIN_CURL_EXIT=0
+            ADMIN_STATUS=$(curl -ksS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused -o "$ADMIN_RESPONSE" -w '%{http_code}' https://admin-radar.yifan1.com/settings) || ADMIN_CURL_EXIT=$?
+            if [ "$ADMIN_CURL_EXIT" -ne 0 ] || [ "$ADMIN_STATUS" != '200' ] || ! grep -q 'Settings' "$ADMIN_RESPONSE"; then
+              echo "admin site verification failed (curl_exit=$ADMIN_CURL_EXIT status=${ADMIN_STATUS:-n/a})"
               python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$ADMIN_RESPONSE"
               exit 1
             fi
@@ -269,4 +271,4 @@ jobs:
       - name: Verify public site from runner
         run: |
           set -Eeuo pipefail
-          curl -kfsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com/site | grep -q '今日精选机会'
+          curl -kfsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com/site | grep -q 'Public Site'
