@@ -153,4 +153,4 @@ jobs:
       - name: Verify public site from runner
         run: |
           set -Eeuo pipefail
-          curl -kfsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com/site | grep -q 'Public Site'
+          curl -kfsS --retry 10 --retry-delay 5 --retry-connrefused https://radar.yifan1.com/site | grep -q '海外商业机会内参'

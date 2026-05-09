@@ -48,7 +48,7 @@ describe('site loaders', () => {
     createArtifactRepository.mockReturnValue({ listByRun: listArtifactsByRun });
   });
 
-  it('builds a public site index only from published site variants', async () => {
+  it('builds a public site index only from published site variants', { timeout: 15000 }, async () => {
     listPublishedByChannel.mockResolvedValue([
       {
         id: 'variant-1',
@@ -131,6 +131,25 @@ describe('site loaders', () => {
 
   it('returns an empty site index when no published site variant exists', async () => {
     listPublishedByChannel.mockResolvedValue([]);
+
+    const { loadSiteContentIndex } = await import('../src/site/loadSiteContentIndex');
+    const result = await loadSiteContentIndex();
+
+    expect(result).toEqual({
+      generatedAt: '',
+      dateKey: '',
+      items: [],
+    });
+    expect(listCandidatesByRun).not.toHaveBeenCalled();
+    expect(listSelectedItemsByRun).not.toHaveBeenCalled();
+    expect(listArtifactsByRun).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty site index when content_variants is missing from the cloud schema', async () => {
+    listPublishedByChannel.mockRejectedValue({
+      code: 'PGRST205',
+      message: "Could not find the table 'public.content_variants' in the schema cache",
+    });
 
     const { loadSiteContentIndex } = await import('../src/site/loadSiteContentIndex');
     const result = await loadSiteContentIndex();

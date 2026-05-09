@@ -1,3 +1,4 @@
+import { isCloudSchemaMissingError } from '../cloud/cloudEnv';
 import { createArtifactRepository } from '../cloud/repositories/artifactRepository';
 import { createCandidateRepository } from '../cloud/repositories/candidateRepository';
 import { createContentVariantRepository } from '../cloud/repositories/contentVariantRepository';
@@ -35,8 +36,22 @@ function getSlug(storagePath: string | undefined, fallbackTitle: string) {
 export async function loadSiteContentIndex(): Promise<SiteContentIndex> {
   const supabase = createSupabaseServerClient();
   const contentVariantRepository = createContentVariantRepository(supabase as never);
-  const variants = await contentVariantRepository.listPublishedByChannel('site');
-  const publishedVariants = variants.filter((variant) => variant.status === 'published');
+
+  let publishedVariants;
+  try {
+    const variants = await contentVariantRepository.listPublishedByChannel('site');
+    publishedVariants = variants.filter((variant) => variant.status === 'published');
+  } catch (error) {
+    if (isCloudSchemaMissingError(error)) {
+      return {
+        generatedAt: '',
+        dateKey: '',
+        items: [],
+      };
+    }
+
+    throw error;
+  }
 
   if (publishedVariants.length === 0) {
     return {

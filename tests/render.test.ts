@@ -1,4 +1,7 @@
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readStyleText } from '../src/render/readStyleText';
 import { renderBriefCardHtml } from '../src/render/renderBriefCard';
 import { renderHtmlScreenshot } from '../src/render/renderHtmlScreenshot';
 import { renderMagazineArticleHtml } from '../src/render/renderMagazineArticle';
@@ -136,6 +139,34 @@ describe('renderBriefCardHtml', () => {
     expect(html).toContain('Validation');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('Signal with &lt;b&gt;HTML&lt;/b&gt;');
+  });
+});
+
+describe('readStyleText', () => {
+  it('reads a Next traced style asset from the build output path', () => {
+    const stylePath = path.join(process.cwd(), '.next', 'static', 'media', 'test-style.css');
+    mkdirSync(path.dirname(stylePath), { recursive: true });
+    writeFileSync(stylePath, 'body{color:#123456;}', 'utf8');
+
+    try {
+      const style = readStyleText(new URL('/_next/static/media/test-style.css', 'file:///ignored'));
+      expect(style).toBe('body{color:#123456;}');
+    } finally {
+      rmSync(stylePath, { force: true });
+    }
+  });
+
+  it('falls back to the traced server chunk asset path for standalone builds', () => {
+    const stylePath = path.join(process.cwd(), '.next', 'server', 'chunks', 'static', 'media', 'chunk-style.css');
+    mkdirSync(path.dirname(stylePath), { recursive: true });
+    writeFileSync(stylePath, 'body{color:#654321;}', 'utf8');
+
+    try {
+      const style = readStyleText(new URL('/_next/static/media/chunk-style.css', 'file:///ignored'));
+      expect(style).toBe('body{color:#654321;}');
+    } finally {
+      rmSync(stylePath, { force: true });
+    }
   });
 });
 

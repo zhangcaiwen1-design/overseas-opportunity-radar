@@ -139,16 +139,50 @@ if [ ! -d "$APP_DIR/.next/static" ]; then
   exit 1
 fi
 
+echo '=== stage: install production dependencies ==='
+npm ci --omit=dev
+
 echo '=== stage: ensure pm2 ==='
-if ! command -v pm2 >/dev/null 2>&1; then
+PM2_CMD=()
+if command -v pm2 >/dev/null 2>&1; then
+  PM2_CMD=(pm2)
+else
   npm install -g pm2
+  if command -v pm2 >/dev/null 2>&1; then
+    PM2_CMD=(pm2)
+  else
+    pm2_js=$(npm root -g)/pm2/bin/pm2
+    if [ -f "$pm2_js" ]; then
+      PM2_CMD=(node "$pm2_js")
+    else
+      echo "pm2 binary not found after global install" >&2
+      exit 1
+    fi
+  fi
 fi
+
+echo '=== stage: ensure playwright browser ==='
+export PLAYWRIGHT_BROWSERS_PATH="$APP_DIR/.playwright"
+if [ ! -x "$APP_DIR/node_modules/.bin/playwright" ]; then
+  echo "playwright cli not found after npm ci" >&2
+  exit 1
+fi
+if command -v apt-get >/dev/null 2>&1; then
+  "$APP_DIR/node_modules/.bin/playwright" install --with-deps chromium
+else
+  "$APP_DIR/node_modules/.bin/playwright" install chromium
+fi
+find "$PLAYWRIGHT_BROWSERS_PATH" -maxdepth 3 \( -name chrome -o -name chrome-headless-shell \) -print
 
 echo '=== stage: start app ==='
 export NODE_ENV=production
 export PORT="$APP_PORT"
-pm2 restart "$PROCESS_NAME" --update-env || pm2 start "$APP_DIR/server.js" --name "$PROCESS_NAME"
-pm2 save
+export PLAYWRIGHT_BROWSERS_PATH
+if "${PM2_CMD[@]}" describe "$PROCESS_NAME" >/dev/null 2>&1; then
+  "${PM2_CMD[@]}" delete "$PROCESS_NAME"
+fi
+"${PM2_CMD[@]}" start "$APP_DIR/server.js" --name "$PROCESS_NAME"
+"${PM2_CMD[@]}" save
 
 echo '=== stage: bootstrap nginx http ==='
 mkdir -p /etc/nginx/conf.d/disabled "$CERTBOT_WEBROOT"
@@ -322,9 +356,9 @@ trap 'rm -f "$PUBLIC_RESPONSE" "$ADMIN_RESPONSE"' EXIT
 
 PUBLIC_CURL_EXIT=0
 PUBLIC_STATUS=$(curl -ksS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused -o "$PUBLIC_RESPONSE" -w '%{http_code}' https://radar.yifan1.com/site) || PUBLIC_CURL_EXIT=$?
-if [ "$PUBLIC_CURL_EXIT" -ne 0 ] || [ "$PUBLIC_STATUS" != '200' ] || ! grep -q 'Public Site' "$PUBLIC_RESPONSE"; then
+if [ "$PUBLIC_CURL_EXIT" -ne 0 ] || [ "$PUBLIC_STATUS" != '200' ] || ! grep -q '海外商业机会内参' "$PUBLIC_RESPONSE"; then
   echo "public site verification failed (curl_exit=$PUBLIC_CURL_EXIT status=${PUBLIC_STATUS:-n/a})"
-  python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$PUBLIC_RESPONSE"
+  python3 -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$PUBLIC_RESPONSE"
   exit 1
 fi
 
@@ -333,6 +367,6 @@ ADMIN_STATUS=$(curl -ksS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 
 echo "verification summary: public(curl_exit=$PUBLIC_CURL_EXIT status=${PUBLIC_STATUS:-n/a}) admin(curl_exit=$ADMIN_CURL_EXIT status=${ADMIN_STATUS:-n/a})"
 if [ "$ADMIN_CURL_EXIT" -ne 0 ] || [ "$ADMIN_STATUS" != '200' ] || ! grep -q 'Settings' "$ADMIN_RESPONSE"; then
   echo "admin site verification failed (curl_exit=$ADMIN_CURL_EXIT status=${ADMIN_STATUS:-n/a})"
-  python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$ADMIN_RESPONSE"
+  python3 -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$ADMIN_RESPONSE"
   exit 1
 fi

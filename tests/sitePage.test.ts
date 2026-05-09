@@ -31,7 +31,12 @@ describe('SitePage', () => {
     const { default: SitePage } = await import('../app/site/page');
     const html = renderToStaticMarkup(await SitePage());
 
-    expect(html).toContain('今日精选机会');
+    expect(html).toContain('海外商业机会内参');
+    expect(html).toContain('Commercial Intelligence Brief');
+    expect(html).toContain('只看能落地的机会');
+    expect(html).toContain('本期精选机会');
+    expect(html).toContain('这份内参怎么产出');
+    expect(html).toContain('想要更贴近你业务的机会雷达');
     expect(html).toContain('Alpha');
     expect(html).toContain('Alpha summary');
     expect(html).toContain('/site/alpha');
@@ -40,6 +45,9 @@ describe('SitePage', () => {
     expect(html).toContain('咨询');
     expect(html).toContain('联系方式（微信 / 邮箱）');
     expect(html).toContain('补充说明（选填）');
+    expect(html).toContain('运营入口');
+    expect(html).toContain('https://admin-radar.yifan1.com');
+    expect(html).toContain('进入后台采集台');
   });
 
   it('renders no cards when there is no published site variant', async () => {
@@ -52,7 +60,8 @@ describe('SitePage', () => {
     const { default: SitePage } = await import('../app/site/page');
     const html = renderToStaticMarkup(await SitePage());
 
-    expect(html).toContain('今日精选机会');
+    expect(html).toContain('海外商业机会内参');
+    expect(html).toContain('新一期内参正在生成');
     expect(html).not.toContain('site-card');
     expect(html).not.toContain('/site/');
   });

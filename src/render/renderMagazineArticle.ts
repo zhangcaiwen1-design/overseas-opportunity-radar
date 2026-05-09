@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readStyleText } from './readStyleText';
 import type {
   OpportunityContentAngle,
   SelectedHeroImageAsset,
@@ -6,7 +6,7 @@ import type {
   WrittenOpportunityImage,
 } from '../types';
 
-const magazineCss = readFileSync(new URL('./styles/magazine.css', import.meta.url), 'utf8');
+const magazineCss = readStyleText(new URL('./styles/magazine.css', import.meta.url));
 
 function escapeHtml(value: string): string {
   return value

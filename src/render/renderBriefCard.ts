@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readStyleText } from './readStyleText';
 import type { WrittenOpportunity } from '../types';
 
-const briefCss = readFileSync(new URL('./styles/brief.css', import.meta.url), 'utf8');
+const briefCss = readStyleText(new URL('./styles/brief.css', import.meta.url));
 
 function escapeHtml(value: string): string {
   return value
