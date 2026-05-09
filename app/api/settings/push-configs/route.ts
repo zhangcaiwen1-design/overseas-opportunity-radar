@@ -81,9 +81,6 @@ export async function POST(request: Request) {
   }
 
   const configs = rawConfigs.filter(isPushConfigInput);
-  if (configs.some((item) => item.enabled !== false && !isValidSecretPayload(item.channel, item.secretPayload ?? ''))) {
-    return NextResponse.json({ ok: false, reason: 'invalid push secret payload' }, { status: 400 });
-  }
 
   const timezone = body.timezone;
   const dailyRunTime = body.dailyRunTime;
@@ -96,13 +93,33 @@ export async function POST(request: Request) {
   const supabase = createSupabaseServerClient();
   const repository = createPushConfigRepository(supabase as never);
   const appSettingsRepository = createAppSettingsRepository(supabase as never);
+  const existingConfigs = await repository.listAll();
+
+  if (
+    configs.some((item) => {
+      if (item.enabled === false) {
+        return false;
+      }
+
+      const nextSecretPayload = typeof item.secretPayload === 'string' ? item.secretPayload.trim() : '';
+      const existing = existingConfigs.find((config) => config.channel === item.channel);
+      return !isValidSecretPayload(item.channel, nextSecretPayload || existing?.secretPayload || '');
+    })
+  ) {
+    return NextResponse.json({ ok: false, reason: 'invalid push secret payload' }, { status: 400 });
+  }
 
   await repository.saveMany(
-    configs.map((item) => ({
-      channel: item.channel,
-      enabled: Boolean(item.enabled),
-      secretPayload: typeof item.secretPayload === 'string' ? item.secretPayload : '',
-    })),
+    configs.map((item) => {
+      const existing = existingConfigs.find((config) => config.channel === item.channel);
+      const nextSecretPayload = typeof item.secretPayload === 'string' ? item.secretPayload.trim() : '';
+
+      return {
+        channel: item.channel,
+        enabled: Boolean(item.enabled),
+        secretPayload: nextSecretPayload || existing?.secretPayload || '',
+      };
+    }),
   );
 
   await appSettingsRepository.saveMany([

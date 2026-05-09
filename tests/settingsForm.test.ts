@@ -23,6 +23,7 @@ describe('SettingsForm', () => {
     expect(html).toContain('cron 预览：0 1 * * *');
     expect(html).toContain('仅根据当前时区与每日执行时间计算，不表示云端定时任务已同步部署。');
     expect(html).toContain('管理密钥');
+    expect(html).toContain('仅保存在当前浏览器');
     expect(html).toContain('ADMIN_SECRET');
     expect(html).toContain('OpenAI 网关');
     expect(html).toContain('OpenAI API Key');
@@ -46,6 +47,17 @@ describe('SettingsForm', () => {
         secretPayload: 'not-a-url',
       }),
     ).toBe('飞书 Webhook 必须使用 https URL');
+  });
+
+  it('allows an enabled config with a saved secret to remain blank in the form', () => {
+    expect(
+      settingsFormModule.validatePushConfigSecretPayload({
+        channel: 'feishu',
+        enabled: true,
+        secretPayload: '',
+        hasSavedSecret: true,
+      }),
+    ).toBe('');
   });
 
   it('renders a validation error and disables save for malformed enabled config', () => {

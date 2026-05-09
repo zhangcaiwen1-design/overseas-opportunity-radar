@@ -538,6 +538,34 @@ pre {
   resize: vertical;
 }
 
+.settings-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-section-head h2 {
+  margin: 0;
+}
+
+.settings-secret-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid rgba(143, 90, 42, 0.18);
+  background: rgba(143, 90, 42, 0.08);
+  color: #7a5c3d;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.settings-secret-badge--ready {
+  border-color: rgba(67, 109, 68, 0.22);
+  background: rgba(67, 109, 68, 0.1);
+  color: #436d44;
+}
+
 .settings-hint {
   margin-top: 12px;
   color: #7a5c3d;

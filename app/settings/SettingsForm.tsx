@@ -9,6 +9,7 @@ interface PushConfigRow {
   channel: 'feishu' | 'wecom' | 'wxpusher';
   enabled: boolean;
   secretPayload: string;
+  hasSavedSecret?: boolean;
 }
 
 const channelLabels: Record<PushConfigRow['channel'], string> = {
@@ -20,6 +21,10 @@ const channelLabels: Record<PushConfigRow['channel'], string> = {
 export function validatePushConfigSecretPayload(config: PushConfigRow) {
   if (!config.enabled) {
     return '';
+  }
+
+  if (!config.secretPayload.trim()) {
+    return config.hasSavedSecret ? '' : '请先填写推送密钥或 Webhook';
   }
 
   if (config.channel === 'wxpusher') {
@@ -80,13 +85,16 @@ export function SettingsForm(input: {
   const [adminSecret, setAdminSecret] = useState('');
   const [status, setStatus] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [adminSecretRemembered, setAdminSecretRemembered] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    setAdminSecret(window.localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) ?? '');
+    const savedSecret = window.localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) ?? '';
+    setAdminSecret(savedSecret);
+    setAdminSecretRemembered(hasAdminSecret(savedSecret));
   }, []);
 
   const orderedConfigs = useMemo(() => configs, [configs]);
@@ -115,6 +123,7 @@ export function SettingsForm(input: {
 
     try {
       window.localStorage.setItem(ADMIN_SECRET_STORAGE_KEY, adminSecret.trim());
+      setAdminSecretRemembered(true);
       const response = await fetch('/api/settings/push-configs', {
         method: 'POST',
         headers: buildAdminHeaders(adminSecret, 'application/json'),
@@ -154,7 +163,12 @@ export function SettingsForm(input: {
         <p className="settings-hint">仅根据当前时区与每日执行时间计算，不表示云端定时任务已同步部署。</p>
       </article>
       <article className="card">
-        <h2>管理密钥</h2>
+        <div className="settings-section-head">
+          <h2>管理密钥</h2>
+          <span className={`settings-secret-badge${adminSecretRemembered ? ' settings-secret-badge--ready' : ''}`}>
+            {adminSecretRemembered ? '已在当前浏览器记住' : '仅保存在当前浏览器'}
+          </span>
+        </div>
         <div className="settings-simple-form">
           <input
             value={adminSecret}
@@ -163,7 +177,9 @@ export function SettingsForm(input: {
             type="password"
           />
         </div>
-        <p className="settings-hint">用于调用受保护的管理接口，只保存在当前浏览器本地。</p>
+        <p className="settings-hint">
+          {adminSecretRemembered ? '当前浏览器已记住该密钥，换设备、无痕模式或清理本地数据后需要重新输入。' : '用于调用受保护的管理接口，只保存在当前浏览器本地。'}
+        </p>
       </article>
       <article className="card">
         <h2>OpenAI 网关</h2>
@@ -213,7 +229,15 @@ export function SettingsForm(input: {
               </div>
               <textarea
                 value={config.secretPayload}
-                placeholder={config.channel === 'wxpusher' ? 'appToken|uid' : 'Webhook URL'}
+                placeholder={
+                  config.hasSavedSecret
+                    ? config.channel === 'wxpusher'
+                      ? '已保存，留空则保持现有 appToken|uid'
+                      : '已保存，留空则保持现有 Webhook URL'
+                    : config.channel === 'wxpusher'
+                      ? 'appToken|uid'
+                      : 'Webhook URL'
+                }
                 onChange={(event) =>
                   setConfigs((current) =>
                     current.map((item) =>

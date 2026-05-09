@@ -67,8 +67,9 @@ export default async function SettingsPage() {
         cronExpression={viewModel.cronExpression}
         configs={viewModel.channels.map((channel) => ({
           channel: channel.channel,
-          enabled: channel.configured,
+          enabled: channel.enabled,
           secretPayload: '',
+          hasSavedSecret: channel.hasSavedSecret,
         }))}
         cloudReady={dashboardData.cloudReady}
       />

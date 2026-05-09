@@ -223,7 +223,7 @@ describe('push configs route', () => {
 
   it('saves settings when cloud env is valid', async () => {
     createSupabaseServerClient.mockReturnValue({});
-    createPushConfigRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
+    createPushConfigRepository.mockReturnValue({ listAll: vi.fn().mockResolvedValue([]), saveMany: vi.fn().mockResolvedValue(undefined) });
     const saveMany = vi.fn().mockResolvedValue(undefined);
     createAppSettingsRepository.mockReturnValue({ saveMany });
     toUtcCronExpression.mockReturnValue('0 1 * * *');
@@ -259,7 +259,7 @@ describe('push configs route', () => {
   it('rejects unsupported push channels', async () => {
     const saveMany = vi.fn().mockResolvedValue(undefined);
     createSupabaseServerClient.mockReturnValue({});
-    createPushConfigRepository.mockReturnValue({ saveMany });
+    createPushConfigRepository.mockReturnValue({ listAll: vi.fn().mockResolvedValue([]), saveMany });
     createAppSettingsRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
     const { POST } = await import('../app/api/settings/push-configs/route');
 
@@ -284,7 +284,7 @@ describe('push configs route', () => {
   it('rejects invalid daily run time format', async () => {
     const saveMany = vi.fn().mockResolvedValue(undefined);
     createSupabaseServerClient.mockReturnValue({});
-    createPushConfigRepository.mockReturnValue({ saveMany });
+    createPushConfigRepository.mockReturnValue({ listAll: vi.fn().mockResolvedValue([]), saveMany });
     createAppSettingsRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
     const { POST } = await import('../app/api/settings/push-configs/route');
 
@@ -305,7 +305,7 @@ describe('push configs route', () => {
   it('allows disabled channels with empty secret payload', async () => {
     const saveMany = vi.fn().mockResolvedValue(undefined);
     createSupabaseServerClient.mockReturnValue({});
-    createPushConfigRepository.mockReturnValue({ saveMany });
+    createPushConfigRepository.mockReturnValue({ listAll: vi.fn().mockResolvedValue([]), saveMany });
     createAppSettingsRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
     toUtcCronExpression.mockReturnValue('0 1 * * *');
     const { POST } = await import('../app/api/settings/push-configs/route');
@@ -334,7 +334,7 @@ describe('push configs route', () => {
   it('rejects malformed wxpusher secret payload', async () => {
     const saveMany = vi.fn().mockResolvedValue(undefined);
     createSupabaseServerClient.mockReturnValue({});
-    createPushConfigRepository.mockReturnValue({ saveMany });
+    createPushConfigRepository.mockReturnValue({ listAll: vi.fn().mockResolvedValue([]), saveMany });
     createAppSettingsRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
     const { POST } = await import('../app/api/settings/push-configs/route');
 
@@ -359,7 +359,7 @@ describe('push configs route', () => {
   it('rejects malformed feishu webhook payload', async () => {
     const saveMany = vi.fn().mockResolvedValue(undefined);
     createSupabaseServerClient.mockReturnValue({});
-    createPushConfigRepository.mockReturnValue({ saveMany });
+    createPushConfigRepository.mockReturnValue({ listAll: vi.fn().mockResolvedValue([]), saveMany });
     createAppSettingsRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
     const { POST } = await import('../app/api/settings/push-configs/route');
 
@@ -379,6 +379,34 @@ describe('push configs route', () => {
     await expect(response.json()).resolves.toEqual({ ok: false, reason: 'invalid push secret payload' });
     expect(saveMany).not.toHaveBeenCalled();
     expect(toUtcCronExpression).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing saved secret when an enabled config is submitted blank', async () => {
+    const saveMany = vi.fn().mockResolvedValue(undefined);
+    const listAll = vi.fn().mockResolvedValue([{ channel: 'feishu', enabled: true, secretPayload: 'https://hooks.example.com/demo' }]);
+    createSupabaseServerClient.mockReturnValue({});
+    createPushConfigRepository.mockReturnValue({ listAll, saveMany });
+    createAppSettingsRepository.mockReturnValue({ saveMany: vi.fn().mockResolvedValue(undefined) });
+    toUtcCronExpression.mockReturnValue('0 1 * * *');
+    const { POST } = await import('../app/api/settings/push-configs/route');
+
+    const response = await POST(
+      new Request('http://localhost/api/settings/push-configs', {
+        method: 'POST',
+        body: JSON.stringify({
+          configs: [{ channel: 'feishu', enabled: true, secretPayload: '' }],
+          timezone: 'Asia/Shanghai',
+          dailyRunTime: '09:00',
+        }),
+        headers: { 'Content-Type': 'application/json', 'x-admin-secret': 'admin-secret' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, cronExpression: '0 1 * * *' });
+    expect(saveMany).toHaveBeenCalledWith([
+      { channel: 'feishu', enabled: true, secretPayload: 'https://hooks.example.com/demo' },
+    ]);
   });
 });
 

@@ -22,6 +22,8 @@ export function buildSettingsPageViewModel(input: {
       return {
         channel,
         configured: config?.enabled ?? input.configuredChannels.includes(channel),
+        enabled: config?.enabled ?? input.configuredChannels.includes(channel),
+        hasSavedSecret: Boolean(config?.secretPayload),
       };
     }),
   };
