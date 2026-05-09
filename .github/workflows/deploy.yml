@@ -161,6 +161,17 @@ jobs:
             pm2 restart "$PROCESS_NAME" --update-env || pm2 start npm --name "$PROCESS_NAME" -- run start -- --port "$APP_PORT"
             pm2 save
 
+            mkdir -p /etc/nginx/conf.d/disabled
+            for conf_file in /etc/nginx/conf.d/*.conf; do
+              [ -f "$conf_file" ] || continue
+              if [ "$conf_file" = "/etc/nginx/conf.d/overseas-opportunity-radar.conf" ]; then
+                continue
+              fi
+              if grep -Eq 'radar\.yifan1\.com|admin-radar\.yifan1\.com' "$conf_file"; then
+                mv "$conf_file" "/etc/nginx/conf.d/disabled/$(basename "$conf_file")"
+              fi
+            done
+
             cat > /etc/nginx/conf.d/overseas-opportunity-radar.conf <<'EOF'
             server {
                 listen 80;
