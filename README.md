@@ -29,7 +29,7 @@
 
 ## 阿里云部署（当前正式上线方式）
 
-一句话说明：当前正式部署链路是 GitHub Actions 在 `main` 分支触发后，把代码发到阿里云服务器，在服务器上用 `pm2` 跑 `next start`（端口 `3001`），再由 `nginx` 反代到 `127.0.0.1:3001`，对外域名是 `https://radar.yifan1.com`。
+一句话说明：当前正式部署链路是 GitHub Actions 在 `main` 分支触发后，把代码发到阿里云服务器，在服务器上用 `pm2` 跑 `next start`（端口 `3001`），再由 `nginx` 把公开站点 `https://radar.yifan1.com` 和后台内容工厂 `https://admin-radar.yifan1.com` 分别反代到同一个 `127.0.0.1:3001` 进程。
 
 ### 1）先认准 workflow 文件位置
 - 仓库内路径：`.github/workflows/deploy.yml`
@@ -62,7 +62,7 @@ ADMIN_SECRET
 - `SERVER_PORT`：SSH 端口，默认一般是 `22`
 - `SERVER_USER`：SSH 登录用户。你当前这台阿里云服务器就按 `root` 填。当前 workflow 默认把项目部署到 `/root/overseas-opportunity-radar`，所以最省事的做法就是直接使用 `root`；如果你以后改成别的用户，请同步检查这个目录是否可写，并且这个部署用户还要能执行 `nginx -s reload`，否则 Actions 会在 nginx 重载步骤失败
 - `SERVER_PASSWORD`：上面这个 SSH 用户的登录密码
-- `NEXT_PUBLIC_APP_URL`：正式环境请填 `https://radar.yifan1.com`
+- `NEXT_PUBLIC_APP_URL`：正式环境继续填公开站点地址 `https://radar.yifan1.com`，不要填后台域名；后台域名 `https://admin-radar.yifan1.com` 只在 nginx 入口层使用，不需要额外 GitHub secret
 
 #### 可选项
 下面这些不影响站点基本启动，但会影响“采集 / 生成 / 推送”等能力：
@@ -133,20 +133,26 @@ mkdir -p /root/overseas-opportunity-radar
 如果你以后不想继续用 `root` 部署，也可以改回别的目录，但要记得同步改 workflow 里的 `APP_DIR`。
 
 #### 3.4 域名先解析到服务器
-把 `radar.yifan1.com` 的 A 记录先指向这台阿里云服务器公网 IP。
+先把下面两条 A 记录都指向这台阿里云服务器公网 IP：
+- `radar.yifan1.com`
+- `admin-radar.yifan1.com`
 
 如果你还没做这一步，后面就算 Actions 成功，外网也打不开站点。
 
 ### 4）nginx 配置示例
-如果证书已经准备好，可直接使用下面这份配置。它会把 `https://radar.yifan1.com` 反代到 `127.0.0.1:3001`，并保留 `Host` / `X-Forwarded-*` 头。
+推荐直接分成两个入口：
+- `radar.yifan1.com`：只给外部用户看公开站点
+- `admin-radar.yifan1.com`：只给你自己进后台内容工厂
 
-建议保存为：`/etc/nginx/sites-available/radar.yifan1.com`
+下面这份配置会把两个域名都反代到同一个 Next.js 进程 `127.0.0.1:3001`，但公开站点域名只放行最小公开路径，避免后台页面直接暴露在公开域名下。
+
+建议保存为：`/etc/nginx/sites-available/overseas-opportunity-radar.conf`
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name radar.yifan1.com;
+    server_name radar.yifan1.com admin-radar.yifan1.com;
 
     return 301 https://$host$request_uri;
 }
@@ -159,17 +165,65 @@ server {
     ssl_certificate /etc/letsencrypt/live/radar.yifan1.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/radar.yifan1.com/privkey.pem;
 
-    location / {
+    location = / {
+        return 302 https://radar.yifan1.com/site;
+    }
+
+    location ^~ /site {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
-
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
+    }
 
+    location = /api/lead-events {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+    location ^~ /_next {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+    location / {
+        return 404;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name admin-radar.yifan1.com;
+
+    ssl_certificate /etc/letsencrypt/live/admin-radar.yifan1.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/admin-radar.yifan1.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         proxy_read_timeout 60s;
         proxy_connect_timeout 60s;
     }
@@ -179,13 +233,13 @@ server {
 启用方式：
 
 ```bash
-sudo ln -sf /etc/nginx/sites-available/radar.yifan1.com /etc/nginx/sites-enabled/radar.yifan1.com
+sudo ln -sf /etc/nginx/sites-available/overseas-opportunity-radar.conf /etc/nginx/sites-enabled/overseas-opportunity-radar.conf
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl reload nginx
 ```
 
-如果你还没有 HTTPS 证书，可以先用 Certbot 给 `radar.yifan1.com` 申请证书，再套用上面的 443 配置。
+如果你还没有 HTTPS 证书，需要分别给 `radar.yifan1.com` 和 `admin-radar.yifan1.com` 申请证书，再套用上面的 443 配置。
 
 ### 5）首次部署顺序（按这个顺序做）
 
@@ -201,7 +255,7 @@ sudo systemctl reload nginx
    - 安装 Node.js、nginx、pm2、rsync
    - 创建部署目录
    - 配好 nginx
-   - 确认 `radar.yifan1.com` 已解析到服务器
+   - 确认 `radar.yifan1.com` 和 `admin-radar.yifan1.com` 都已解析到服务器
 
 4. push main
    - 当前正式部署是 `push main` 触发
@@ -212,8 +266,8 @@ sudo systemctl reload nginx
    - 全绿后，再继续看站点
 
 6. 看站点
-   - 先打开 `https://radar.yifan1.com`
-   - 再检查后台 `/settings`
+   - 先打开 `https://radar.yifan1.com`，确认会进入公开站点
+   - 再打开 `https://admin-radar.yifan1.com/settings`，确认能进入后台内容工厂
    - 如果不通，先上服务器执行下面几个命令排查：
 
 ```bash
@@ -226,15 +280,16 @@ curl -I https://radar.yifan1.com
 ### 6）Smoke test 清单
 每次首次上线或重要改动上线后，至少按下面顺序过一遍：
 
-- [ ] 打开 `/settings`，确认预检通过，没有关键环境变量缺失
-- [ ] 手动采集一次
+- [ ] 打开 `https://admin-radar.yifan1.com/settings`，确认预检通过，没有关键环境变量缺失
+- [ ] 在后台手动采集一次
 - [ ] 跑一次生成流程
 - [ ] 跑一次推送流程
 - [ ] 执行一次“发布到网站”
-- [ ] 打开 `/site`，确认列表页可访问
-- [ ] 打开一篇 `/site/[slug]`，确认详情页可访问
-- [ ] 在网站上提交一次线索表单，确认能写入
-- [ ] 执行一次“从网站下线”，确认内容会从网站侧消失
+- [ ] 打开 `https://radar.yifan1.com`，确认会跳到公开站点入口
+- [ ] 打开 `https://radar.yifan1.com/site`，确认列表页可访问
+- [ ] 打开一篇 `https://radar.yifan1.com/site/[slug]`，确认详情页可访问
+- [ ] 在公开网站上提交一次线索表单，确认能写入
+- [ ] 执行一次“从网站下线”，确认内容会从公开网站侧消失
 
 ## Vercel 旧说明（仅保留给历史参考，不是当前生产链路）
 
