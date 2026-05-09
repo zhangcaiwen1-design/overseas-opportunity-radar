@@ -31,6 +31,22 @@ jobs:
           npm run build
 
       - name: Prepare deployment bundle
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          CANDIDATE_TRANSLATION_MODEL: ${{ secrets.CANDIDATE_TRANSLATION_MODEL }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          WXPUSHER_APP_TOKEN: ${{ secrets.WXPUSHER_APP_TOKEN }}
+          WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
+          RSS_FEEDS: ${{ secrets.RSS_FEEDS }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         run: |
           set -Eeuo pipefail
           rm -rf .deploy-tmp
@@ -40,6 +56,30 @@ jobs:
           if [ -d public ]; then
             cp -R public .deploy-tmp/public
           fi
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          env_lines = [
+              f"OPENAI_API_KEY={os.environ['OPENAI_API_KEY']}",
+              f"OPENAI_BASE_URL={os.environ['OPENAI_BASE_URL']}",
+              f"CANDIDATE_TRANSLATION_MODEL={os.environ['CANDIDATE_TRANSLATION_MODEL']}",
+              f"PEXELS_API_KEY={os.environ['PEXELS_API_KEY']}",
+              f"FEISHU_WEBHOOK_URL={os.environ['FEISHU_WEBHOOK_URL']}",
+              f"WECOM_WEBHOOK_URL={os.environ['WECOM_WEBHOOK_URL']}",
+              f"WXPUSHER_APP_TOKEN={os.environ['WXPUSHER_APP_TOKEN']}",
+              f"WXPUSHER_UID={os.environ['WXPUSHER_UID']}",
+              f"RSS_FEEDS={os.environ['RSS_FEEDS']}",
+              'OUTPUT_ROOT=output',
+              'TIMEZONE=Asia/Shanghai',
+              f"NEXT_PUBLIC_SUPABASE_URL={os.environ['NEXT_PUBLIC_SUPABASE_URL']}",
+              f"SUPABASE_SERVICE_ROLE_KEY={os.environ['SUPABASE_SERVICE_ROLE_KEY']}",
+              f"SUPABASE_STORAGE_BUCKET={os.environ['SUPABASE_STORAGE_BUCKET']}",
+              f"CRON_SECRET={os.environ['CRON_SECRET']}",
+              f"NEXT_PUBLIC_APP_URL={os.environ['NEXT_PUBLIC_APP_URL']}",
+              f"ADMIN_SECRET={os.environ['ADMIN_SECRET']}",
+          ]
+          Path('.deploy-tmp/.env.production').write_text('\n'.join(env_lines) + '\n', encoding='utf-8')
+          PY
 
       - name: Prepare remote upload directory
         uses: appleboy/ssh-action@v1.0.3
@@ -66,29 +106,12 @@ jobs:
 
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-          CANDIDATE_TRANSLATION_MODEL: ${{ secrets.CANDIDATE_TRANSLATION_MODEL }}
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
-          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
-          WXPUSHER_APP_TOKEN: ${{ secrets.WXPUSHER_APP_TOKEN }}
-          WXPUSHER_UID: ${{ secrets.WXPUSHER_UID }}
-          RSS_FEEDS: ${{ secrets.RSS_FEEDS }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           port: ${{ secrets.SERVER_PORT }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script_stop: true
-          envs: OPENAI_API_KEY,OPENAI_BASE_URL,CANDIDATE_TRANSLATION_MODEL,PEXELS_API_KEY,FEISHU_WEBHOOK_URL,WECOM_WEBHOOK_URL,WXPUSHER_APP_TOKEN,WXPUSHER_UID,RSS_FEEDS,NEXT_PUBLIC_SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_STORAGE_BUCKET,CRON_SECRET,NEXT_PUBLIC_APP_URL,ADMIN_SECRET
           script: |
             set -Eeuo pipefail
             trap 'echo "deploy failed at line $LINENO" >&2' ERR
@@ -205,28 +228,12 @@ jobs:
             ensure_node_runtime
 
             echo '=== stage: sync app files ==='
-            rsync -a --delete --exclude '.env.production' "$UPLOAD_DIR"/ "$APP_DIR"/
+            rsync -a --delete "$UPLOAD_DIR"/ "$APP_DIR"/
 
-            echo '=== stage: write env file ==='
-            cat > "$APP_DIR/.env.production" <<EOF
-            OPENAI_API_KEY=${OPENAI_API_KEY}
-            OPENAI_BASE_URL=${OPENAI_BASE_URL}
-            CANDIDATE_TRANSLATION_MODEL=${CANDIDATE_TRANSLATION_MODEL}
-            PEXELS_API_KEY=${PEXELS_API_KEY}
-            FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL}
-            WECOM_WEBHOOK_URL=${WECOM_WEBHOOK_URL}
-            WXPUSHER_APP_TOKEN=${WXPUSHER_APP_TOKEN}
-            WXPUSHER_UID=${WXPUSHER_UID}
-            RSS_FEEDS=${RSS_FEEDS}
-            OUTPUT_ROOT=output
-            TIMEZONE=Asia/Shanghai
-            NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-            SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-            SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET}
-            CRON_SECRET=${CRON_SECRET}
-            NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-            ADMIN_SECRET=${ADMIN_SECRET}
-            EOF
+            if [ ! -f "$APP_DIR/.env.production" ]; then
+              echo ".env.production was not uploaded" >&2
+              exit 1
+            fi
 
             if [ -s "$NVM_DIR/nvm.sh" ]; then
               . "$NVM_DIR/nvm.sh"
