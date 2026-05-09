@@ -253,26 +253,18 @@ jobs:
             trap 'rm -f "$PUBLIC_RESPONSE" "$ADMIN_RESPONSE"' EXIT
 
             curl -kfsS --resolve radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://radar.yifan1.com/site > "$PUBLIC_RESPONSE"
-            python - <<'PY' "$PUBLIC_RESPONSE"
-from pathlib import Path
-import sys
-text = Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')
-if '今日精选机会' not in text:
-    print('public site verification failed')
-    print(text[:500])
-    raise SystemExit(1)
-PY
+            if ! grep -q '今日精选机会' "$PUBLIC_RESPONSE"; then
+              echo 'public site verification failed'
+              python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$PUBLIC_RESPONSE"
+              exit 1
+            fi
 
             curl -kfsS --resolve admin-radar.yifan1.com:443:127.0.0.1 --retry 10 --retry-delay 3 --retry-connrefused https://admin-radar.yifan1.com/settings > "$ADMIN_RESPONSE"
-            python - <<'PY' "$ADMIN_RESPONSE"
-from pathlib import Path
-import sys
-text = Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')
-if '运行与推送配置' not in text:
-    print('admin site verification failed')
-    print(text[:500])
-    raise SystemExit(1)
-PY
+            if ! grep -q '运行与推送配置' "$ADMIN_RESPONSE"; then
+              echo 'admin site verification failed'
+              python -c "from pathlib import Path; import sys; print(Path(sys.argv[1]).read_text(encoding='utf-8', errors='ignore')[:500])" "$ADMIN_RESPONSE"
+              exit 1
+            fi
 
       - name: Verify public site from runner
         run: |
