@@ -91,7 +91,9 @@ jobs:
           envs: OPENAI_API_KEY,OPENAI_BASE_URL,CANDIDATE_TRANSLATION_MODEL,PEXELS_API_KEY,FEISHU_WEBHOOK_URL,WECOM_WEBHOOK_URL,WXPUSHER_APP_TOKEN,WXPUSHER_UID,RSS_FEEDS,NEXT_PUBLIC_SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,SUPABASE_STORAGE_BUCKET,CRON_SECRET,NEXT_PUBLIC_APP_URL,ADMIN_SECRET
           script: |
             set -Eeuo pipefail
+            trap 'echo "deploy failed at line $LINENO" >&2' ERR
 
+            echo '=== stage: init ==='
             APP_DIR=/root/overseas-opportunity-radar
             UPLOAD_DIR=/tmp/overseas-opportunity-radar-deploy/.deploy-tmp
             PROCESS_NAME=overseas-opportunity-radar
@@ -142,14 +144,17 @@ jobs:
 
             mkdir -p "$APP_DIR"
 
+            echo '=== stage: ensure dependencies ==='
             ensure_command rsync rsync
             ensure_command curl curl
             ensure_command nginx nginx
             ensure_command certbot certbot
             ensure_command python3 python3
 
+            echo '=== stage: sync app files ==='
             rsync -a --delete --exclude '.env.production' "$UPLOAD_DIR"/ "$APP_DIR"/
 
+            echo '=== stage: write env file ==='
             cat > "$APP_DIR/.env.production" <<EOF
             OPENAI_API_KEY=${OPENAI_API_KEY}
             OPENAI_BASE_URL=${OPENAI_BASE_URL}
@@ -188,18 +193,22 @@ jobs:
             node -v
             npm -v
 
+            echo '=== stage: build app ==='
             cd "$APP_DIR"
             npm ci
             npm run build
 
+            echo '=== stage: ensure pm2 ==='
             if ! command -v pm2 >/dev/null 2>&1; then
               npm install -g pm2
             fi
 
+            echo '=== stage: start app ==='
             export NODE_ENV=production
             pm2 restart "$PROCESS_NAME" --update-env || pm2 start npm --name "$PROCESS_NAME" -- run start -- --port "$APP_PORT"
             pm2 save
 
+            echo '=== stage: bootstrap nginx http ==='
             mkdir -p /etc/nginx/conf.d/disabled "$CERTBOT_WEBROOT"
             for conf_file in /etc/nginx/conf.d/*.conf; do
               [ -f "$conf_file" ] || continue
@@ -234,9 +243,11 @@ jobs:
             }
             EOF
 
+            echo '=== stage: reload nginx http ==='
             nginx -t
             restart_nginx
 
+            echo '=== stage: issue tls cert ==='
             certbot certonly \
               --webroot \
               -w "$CERTBOT_WEBROOT" \
@@ -337,9 +348,11 @@ jobs:
             }
             EOF
 
+            echo '=== stage: switch nginx https ==='
             nginx -t
             restart_nginx
 
+            echo '=== stage: diagnostics ==='
             echo '=== deploy host ==='
             hostname
             echo '=== host ips ==='
