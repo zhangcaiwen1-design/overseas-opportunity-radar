@@ -691,6 +691,114 @@ describe('loadDashboardData', () => {
     expect(listRecent).toHaveBeenCalledWith(5);
   });
 
+  it('keeps dashboard cloudReady when recent lead events query fails', async () => {
+    resolveCloudPreflight.mockResolvedValue({
+      status: 'ready',
+      environment: 'staging',
+      environmentLabel: 'Staging 环境',
+      summary: '云端环境已就绪',
+      hint: '继续',
+      missingKeys: [],
+    });
+    createSupabaseServerClient.mockReturnValue({});
+    createRunRepository.mockReturnValue({
+      getLatest: vi.fn().mockResolvedValue({
+        id: 'run-1',
+        dateKey: '2026-05-08',
+        triggerType: 'cron',
+        status: 'completed',
+        startedAt: '2026-05-08T09:00:00.000Z',
+        summaryText: 'done',
+        errorMessage: '',
+      }),
+      listRecent: vi.fn().mockResolvedValue([]),
+    });
+    createPushConfigRepository.mockReturnValue({
+      listEnabled: vi.fn().mockResolvedValue([]),
+      listAll: vi.fn().mockResolvedValue([]),
+    });
+    createPushLogRepository.mockReturnValue({
+      listByRunIds: vi.fn().mockResolvedValue([]),
+    });
+    createAppSettingsRepository.mockReturnValue({
+      listAll: vi.fn().mockResolvedValue([]),
+    });
+    createCandidateRepository.mockReturnValue({ listByRun: vi.fn().mockResolvedValue([]) });
+    createSelectedItemRepository.mockReturnValue({ listByRun: vi.fn().mockResolvedValue([]) });
+    createArtifactRepository.mockReturnValue({
+      listByRun: vi.fn().mockResolvedValue([]),
+      listByRunIds: vi.fn().mockResolvedValue([]),
+    });
+    createLeadEventRepository.mockReturnValue({
+      listRecent: vi.fn().mockRejectedValue(new Error('lead_events schema drift')),
+    });
+
+    const { loadDashboardData } = await import('../src/cloud/queries/loadDashboardData');
+    const result = await loadDashboardData();
+
+    expect(result.cloudReady).toBe(true);
+    expect(result.preflight.status).toBe('ready');
+    expect(result.recentLeadEvents).toEqual([]);
+  });
+
+  it('keeps dashboard cloudReady when content variants and publication logs are unavailable', async () => {
+    resolveCloudPreflight.mockResolvedValue({
+      status: 'ready',
+      environment: 'staging',
+      environmentLabel: 'Staging 环境',
+      summary: '云端环境已就绪',
+      hint: '继续',
+      missingKeys: [],
+    });
+    createSupabaseServerClient.mockReturnValue({});
+    createRunRepository.mockReturnValue({
+      getLatest: vi.fn().mockResolvedValue({
+        id: 'run-1',
+        dateKey: '2026-05-08',
+        triggerType: 'cron',
+        status: 'completed',
+        startedAt: '2026-05-08T09:00:00.000Z',
+        summaryText: 'done',
+        errorMessage: '',
+      }),
+      listRecent: vi.fn().mockResolvedValue([]),
+    });
+    createPushConfigRepository.mockReturnValue({
+      listEnabled: vi.fn().mockResolvedValue([]),
+      listAll: vi.fn().mockResolvedValue([]),
+    });
+    createPushLogRepository.mockReturnValue({
+      listByRunIds: vi.fn().mockResolvedValue([]),
+    });
+    createAppSettingsRepository.mockReturnValue({
+      listAll: vi.fn().mockResolvedValue([]),
+    });
+    createCandidateRepository.mockReturnValue({ listByRun: vi.fn().mockResolvedValue([]) });
+    createSelectedItemRepository.mockReturnValue({ listByRun: vi.fn().mockResolvedValue([]) });
+    createArtifactRepository.mockReturnValue({
+      listByRun: vi.fn().mockResolvedValue([]),
+      listByRunIds: vi.fn().mockResolvedValue([]),
+    });
+    createContentVariantRepository.mockReturnValue({
+      listByRun: vi.fn().mockRejectedValue(new Error('content_variants missing')),
+      listByRunIds: vi.fn().mockResolvedValue([]),
+    });
+    createPublicationLogRepository.mockReturnValue({
+      listByContentVariantIds: vi.fn().mockRejectedValue(new Error('publication_logs missing')),
+    });
+    createLeadEventRepository.mockReturnValue({
+      listRecent: vi.fn().mockResolvedValue([]),
+    });
+
+    const { loadDashboardData } = await import('../src/cloud/queries/loadDashboardData');
+    const result = await loadDashboardData();
+
+    expect(result.cloudReady).toBe(true);
+    expect(result.preflight.status).toBe('ready');
+    expect(result.currentContentVariants).toEqual([]);
+    expect(result.currentPublicationLogs).toEqual([]);
+  });
+
   it('loads and parses push execution artifact for the current run', async () => {
     resolveCloudPreflight.mockResolvedValue({
       status: 'ready',

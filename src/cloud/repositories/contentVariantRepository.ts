@@ -1,3 +1,4 @@
+import { PostgrestError } from '@supabase/supabase-js';
 import type { CloudContentVariant, CloudContentVariantStatus, CloudPublicationChannel } from '../types';
 
 interface ContentVariantRow {
@@ -64,6 +65,14 @@ function mapContentVariant(row: ContentVariantRow): CloudContentVariant {
     publishedAt: row.published_at ?? undefined,
     reviewNotes: row.review_notes ?? '',
   };
+}
+
+function isMissingContentVariantFieldError(error: unknown) {
+  if (!(error instanceof PostgrestError)) {
+    return false;
+  }
+
+  return error.code === 'PGRST204' && /review_notes/.test(error.message);
 }
 
 export function createContentVariantRepository(supabase: SupabaseLike) {
@@ -160,48 +169,56 @@ export function createContentVariantRepository(supabase: SupabaseLike) {
       return mapContentVariant(data);
     },
     async listByRun(runId: string): Promise<CloudContentVariant[]> {
-      const { data, error } = await supabase
-        .from('content_variants')
-        .select('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes')
-        .eq('run_id', runId)
-        .order('id');
+      const loadRows = async (columns: string) =>
+        supabase.from('content_variants').select(columns).eq('run_id', runId).order('id');
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes');
+
+      if (result.error && isMissingContentVariantFieldError(result.error)) {
+        result = await loadRows('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at');
       }
 
-      return (data ?? []).map(mapContentVariant);
+      if (result.error) {
+        throw result.error;
+      }
+
+      return (result.data ?? []).map(mapContentVariant);
     },
     async listByRunIds(runIds: string[]): Promise<CloudContentVariant[]> {
       if (runIds.length === 0) {
         return [];
       }
 
-      const { data, error } = await supabase
-        .from('content_variants')
-        .select('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes')
-        .in('run_id', runIds)
-        .order('published_at', { ascending: false });
+      const loadRows = async (columns: string) =>
+        supabase.from('content_variants').select(columns).in('run_id', runIds).order('published_at', { ascending: false });
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes');
+
+      if (result.error && isMissingContentVariantFieldError(result.error)) {
+        result = await loadRows('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at');
       }
 
-      return (data ?? []).map(mapContentVariant);
+      if (result.error) {
+        throw result.error;
+      }
+
+      return (result.data ?? []).map(mapContentVariant);
     },
     async listPublishedByChannel(channel: CloudPublicationChannel): Promise<CloudContentVariant[]> {
-      const { data, error } = await supabase
-        .from('content_variants')
-        .select('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes')
-        .eq('channel', channel)
-        .eq('status', 'published')
-        .order('published_at', { ascending: false });
+      const loadRows = async (columns: string) =>
+        supabase.from('content_variants').select(columns).eq('channel', channel).eq('status', 'published').order('published_at', { ascending: false });
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes');
+
+      if (result.error && isMissingContentVariantFieldError(result.error)) {
+        result = await loadRows('id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at');
       }
 
-      return (data ?? []).map(mapContentVariant);
+      if (result.error) {
+        throw result.error;
+      }
+
+      return (result.data ?? []).map(mapContentVariant);
     },
   };
 }

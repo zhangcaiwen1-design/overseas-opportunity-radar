@@ -1,3 +1,4 @@
+import { PostgrestError } from '@supabase/supabase-js';
 import { describe, expect, it, vi } from 'vitest';
 import { createAppSettingsRepository } from '../src/cloud/repositories/appSettingsRepository';
 import { createArtifactRepository } from '../src/cloud/repositories/artifactRepository';
@@ -59,6 +60,54 @@ describe('createRunRepository', () => {
       triggerType: 'manual',
       status: 'running',
       startedAt: '2026-05-08T01:00:00.000Z',
+      summaryText: '',
+      errorMessage: '',
+    });
+  });
+
+  it('falls back to schema-compatible latest run columns when summary fields are missing', async () => {
+    const fullLimit = vi.fn().mockResolvedValue({
+      data: null,
+      error: new PostgrestError({
+        code: 'PGRST204',
+        details: null,
+        hint: null,
+        message: "Could not find the 'summary_text' column of 'runs' in the schema cache",
+      }),
+    });
+    const fullOrder = vi.fn().mockReturnValue({ limit: fullLimit });
+
+    const fallbackLimit = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'run-legacy-latest',
+          date_key: '2026-05-10',
+          trigger_type: 'manual',
+          status: 'completed',
+          started_at: '2026-05-10T01:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fallbackOrder = vi.fn().mockReturnValue({ limit: fallbackLimit });
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ order: fullOrder })
+      .mockReturnValueOnce({ order: fallbackOrder });
+    const from = vi.fn().mockReturnValue({ select });
+    const repository = createRunRepository({ from } as never);
+
+    const run = await repository.getLatest();
+
+    expect(select).toHaveBeenNthCalledWith(1, 'id,date_key,trigger_type,status,started_at,summary_text,error_message');
+    expect(select).toHaveBeenNthCalledWith(2, 'id,date_key,trigger_type,status,started_at');
+    expect(run).toEqual({
+      id: 'run-legacy-latest',
+      dateKey: '2026-05-10',
+      triggerType: 'manual',
+      status: 'completed',
+      startedAt: '2026-05-10T01:00:00.000Z',
       summaryText: '',
       errorMessage: '',
     });
@@ -126,6 +175,58 @@ describe('createRunRepository', () => {
         selectedCount: 3,
         poolCount: 12,
         summaryText: 'done',
+        errorMessage: '',
+      },
+    ]);
+  });
+
+  it('falls back to schema-compatible run columns when summary fields are missing', async () => {
+    const fullLimit = vi.fn().mockResolvedValue({
+      data: null,
+      error: new PostgrestError({
+        code: 'PGRST204',
+        details: null,
+        hint: null,
+        message: "Could not find the 'selected_count' column of 'runs' in the schema cache",
+      }),
+    });
+    const fullOrder = vi.fn().mockReturnValue({ limit: fullLimit });
+
+    const fallbackLimit = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'run-legacy-1',
+          date_key: '2026-05-09',
+          trigger_type: 'manual',
+          status: 'completed',
+          started_at: '2026-05-09T01:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fallbackOrder = vi.fn().mockReturnValue({ limit: fallbackLimit });
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ order: fullOrder })
+      .mockReturnValueOnce({ order: fallbackOrder });
+    const from = vi.fn().mockReturnValue({ select });
+    const repository = createRunRepository({ from } as never);
+
+    const runs = await repository.listRecent(5);
+
+    expect(select).toHaveBeenNthCalledWith(1, 'id,date_key,trigger_type,status,started_at,selected_count,pool_count,summary_text,error_message');
+    expect(select).toHaveBeenNthCalledWith(2, 'id,date_key,trigger_type,status,started_at');
+    expect(runs).toEqual([
+      {
+        id: 'run-legacy-1',
+        dateKey: '2026-05-09',
+        triggerType: 'manual',
+        status: 'completed',
+        startedAt: '2026-05-09T01:00:00.000Z',
+        selectedCount: 0,
+        poolCount: 0,
+        summaryText: '',
         errorMessage: '',
       },
     ]);
@@ -547,6 +648,63 @@ describe('createContentVariantRepository', () => {
     ]);
   });
 
+  it('falls back to schema-compatible content variant columns when review_notes is missing', async () => {
+    const fullOrder = vi.fn().mockResolvedValue({
+      data: null,
+      error: new PostgrestError({
+        code: 'PGRST204',
+        details: null,
+        hint: null,
+        message: "Could not find the 'review_notes' column of 'content_variants' in the schema cache",
+      }),
+    });
+    const fullEq = vi.fn().mockReturnValue({ order: fullOrder });
+
+    const fallbackOrder = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'variant-legacy-1',
+          run_id: 'run-1',
+          candidate_id: null,
+          selected_item_id: 'selected-1',
+          channel: 'site',
+          title: '旧站点标题',
+          body: '旧站点正文',
+          status: 'published',
+          published_at: '2026-05-09T02:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fallbackEq = vi.fn().mockReturnValue({ order: fallbackOrder });
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ eq: fullEq })
+      .mockReturnValueOnce({ eq: fallbackEq });
+    const from = vi.fn().mockReturnValue({ select });
+    const repository = createContentVariantRepository({ from } as never);
+
+    const variants = await repository.listByRun('run-1');
+
+    expect(select).toHaveBeenNthCalledWith(1, 'id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at,review_notes');
+    expect(select).toHaveBeenNthCalledWith(2, 'id,run_id,candidate_id,selected_item_id,channel,title,body,status,published_at');
+    expect(variants).toEqual([
+      {
+        id: 'variant-legacy-1',
+        runId: 'run-1',
+        candidateId: undefined,
+        selectedItemId: 'selected-1',
+        channel: 'site',
+        title: '旧站点标题',
+        body: '旧站点正文',
+        status: 'published',
+        publishedAt: '2026-05-09T02:00:00.000Z',
+        reviewNotes: '',
+      },
+    ]);
+  });
+
   it('lists published content variants by channel in published order', async () => {
     const order = vi.fn().mockResolvedValue({
       data: [
@@ -817,6 +975,59 @@ describe('createPublicationLogRepository', () => {
       },
     ]);
   });
+
+  it('falls back to schema-compatible publication log columns when operator is missing', async () => {
+    const fullOrder = vi.fn().mockResolvedValue({
+      data: null,
+      error: new PostgrestError({
+        code: 'PGRST204',
+        details: null,
+        hint: null,
+        message: "Could not find the 'operator' column of 'publication_logs' in the schema cache",
+      }),
+    });
+    const fullInFilter = vi.fn().mockReturnValue({ order: fullOrder });
+
+    const fallbackOrder = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'log-legacy-1',
+          content_variant_id: 'variant-1',
+          channel: 'site',
+          action: 'publish',
+          status: 'success',
+          response_summary: 'published',
+          created_at: '2026-05-09T03:10:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fallbackInFilter = vi.fn().mockReturnValue({ order: fallbackOrder });
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ in: fullInFilter })
+      .mockReturnValueOnce({ in: fallbackInFilter });
+    const from = vi.fn().mockReturnValue({ select });
+    const repository = createPublicationLogRepository({ from } as never);
+
+    const logs = await repository.listByContentVariantIds(['variant-1']);
+
+    expect(select).toHaveBeenNthCalledWith(1, 'id,content_variant_id,channel,action,status,response_summary,operator,created_at');
+    expect(select).toHaveBeenNthCalledWith(2, 'id,content_variant_id,channel,action,status,response_summary,created_at');
+    expect(logs).toEqual([
+      {
+        id: 'log-legacy-1',
+        contentVariantId: 'variant-1',
+        channel: 'site',
+        action: 'publish',
+        status: 'success',
+        responseSummary: 'published',
+        operator: '',
+        createdAt: '2026-05-09T03:10:00.000Z',
+      },
+    ]);
+  });
 });
 
 describe('createLeadEventRepository', () => {
@@ -962,6 +1173,56 @@ describe('createLeadEventRepository', () => {
         pageType: 'site_article',
         eventType: 'consult',
         contact: 'wechat-radar',
+        notes: '',
+        createdAt: '2026-05-09T04:05:00.000Z',
+      },
+    ]);
+  });
+
+  it('falls back to schema-compatible lead event columns when contact and notes are missing', async () => {
+    const fullLimit = vi.fn().mockResolvedValue({
+      data: null,
+      error: new PostgrestError({
+        code: 'PGRST204',
+        details: null,
+        hint: null,
+        message: "Could not find the 'contact' column of 'lead_events' in the schema cache",
+      }),
+    });
+    const fullOrder = vi.fn().mockReturnValue({ limit: fullLimit });
+
+    const fallbackLimit = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'lead-legacy-1',
+          source_channel: 'site',
+          page_type: 'site_index',
+          event_type: 'partner_inquiry',
+          created_at: '2026-05-09T04:05:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const fallbackOrder = vi.fn().mockReturnValue({ limit: fallbackLimit });
+
+    const select = vi
+      .fn()
+      .mockReturnValueOnce({ order: fullOrder })
+      .mockReturnValueOnce({ order: fallbackOrder });
+    const from = vi.fn().mockReturnValue({ select });
+    const repository = createLeadEventRepository({ from } as never);
+
+    const events = await repository.listRecent(5);
+
+    expect(select).toHaveBeenNthCalledWith(1, 'id,source_channel,page_type,event_type,contact,notes,created_at');
+    expect(select).toHaveBeenNthCalledWith(2, 'id,source_channel,page_type,event_type,created_at');
+    expect(events).toEqual([
+      {
+        id: 'lead-legacy-1',
+        sourceChannel: 'site',
+        pageType: 'site_index',
+        eventType: 'partner_inquiry',
+        contact: '',
         notes: '',
         createdAt: '2026-05-09T04:05:00.000Z',
       },

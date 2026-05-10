@@ -1,19 +1,19 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-const loadDashboardData = vi.fn();
+const loadSettingsPageData = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
-vi.mock('../src/cloud/queries/loadDashboardData', () => ({
-  loadDashboardData,
+vi.mock('../src/cloud/queries/loadSettingsPageData', () => ({
+  loadSettingsPageData,
 }));
 
 describe('SettingsPage', () => {
   it('renders deployment blockers when cloud preflight is not ready', async () => {
-    loadDashboardData.mockResolvedValue({
+    loadSettingsPageData.mockResolvedValue({
       cloudReady: false,
       preflight: {
         status: 'missing_env',
@@ -23,19 +23,12 @@ describe('SettingsPage', () => {
         hint: '先在 .env.local 或 .env 中补齐这 5 个云端变量。',
         missingKeys: ['CRON_SECRET', 'NEXT_PUBLIC_APP_URL'],
       },
-      run: { id: 'uninitialized', dateKey: '未运行', status: 'idle', triggerType: 'manual' },
-      candidates: [],
-      selectedItems: [],
-      pushDigest: '今日还没有推送文稿。',
-      pushStatus: { feishu: false, wecom: false, wxpusher: false },
       configuredChannels: [],
       allPushConfigs: [],
       timezone: 'Asia/Shanghai',
       dailyRunTime: '09:00',
       openaiBaseUrl: '',
       openaiApiKeyConfigured: false,
-      historyRuns: [],
-      artifacts: [],
     });
 
     const { default: SettingsPage } = await import('../app/settings/page');
@@ -50,7 +43,7 @@ describe('SettingsPage', () => {
   });
 
   it('renders environment-aware preflight copy and cron expression from the view model chain', async () => {
-    loadDashboardData.mockResolvedValue({
+    loadSettingsPageData.mockResolvedValue({
       cloudReady: true,
       preflight: {
         status: 'ready',
@@ -60,19 +53,12 @@ describe('SettingsPage', () => {
         hint: '可以先在 /settings 确认配置，再触发一次手动采集。',
         missingKeys: [],
       },
-      run: { id: 'uninitialized', dateKey: '未运行', status: 'idle', triggerType: 'manual' },
-      candidates: [],
-      selectedItems: [],
-      pushDigest: '今日还没有推送文稿。',
-      pushStatus: { feishu: false, wecom: false, wxpusher: false },
       configuredChannels: ['feishu'],
       allPushConfigs: [{ channel: 'feishu', enabled: true, secretPayload: 'https://example.com/hook' }],
       timezone: 'Asia/Shanghai',
       dailyRunTime: '09:00',
       openaiBaseUrl: 'https://gateway.example.com/v1',
       openaiApiKeyConfigured: true,
-      historyRuns: [],
-      artifacts: [],
     });
 
     const { default: SettingsPage } = await import('../app/settings/page');

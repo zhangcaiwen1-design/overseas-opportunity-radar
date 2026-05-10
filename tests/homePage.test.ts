@@ -78,7 +78,8 @@ describe('HomePage', () => {
 
     expect(html).toContain('当前失败环节');
     expect(html).toContain('publish');
-    expect(html).toContain('当前失败说明：site publish failed：Build failed');
+    expect(html).toContain('当前失败说明：网站发布失败：Build failed');
+    expect(html).toContain('打开客户站');
     expect(html).toContain('异常恢复');
     expect(html).toContain('可在下方已生成条目中重新点击“发布到网站”。');
     expect(html).toContain('重新发布到网站');
@@ -265,7 +266,7 @@ describe('HomePage', () => {
     expect(html).toContain('已发布站点稿件');
     expect(html).toContain('1 篇');
     expect(html).toContain('发布成功日志');
-    expect(html).toContain('最近发布摘要：site publish success：Published to /posts/a');
+    expect(html).toContain('最近发布摘要：网站发布成功：Published to /posts/a');
     expect(html).toContain('最近转化事件');
     expect(html).toContain('2 条');
     expect(html).toContain('事件类型摘要');
@@ -295,6 +296,7 @@ describe('HomePage', () => {
     expect(html).toContain('candidate-low');
     expect(html).toContain('hold / low');
     expect(html).toContain('管理密钥');
+    expect(html).toContain('打开客户站');
     expect(html).toContain('从网站下线');
   });
 });

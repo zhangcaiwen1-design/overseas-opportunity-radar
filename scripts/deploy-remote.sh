@@ -177,6 +177,7 @@ find "$PLAYWRIGHT_BROWSERS_PATH" -maxdepth 3 \( -name chrome -o -name chrome-hea
 echo '=== stage: start app ==='
 export NODE_ENV=production
 export PORT="$APP_PORT"
+export HOSTNAME=0.0.0.0
 export PLAYWRIGHT_BROWSERS_PATH
 if "${PM2_CMD[@]}" describe "$PROCESS_NAME" >/dev/null 2>&1; then
   "${PM2_CMD[@]}" delete "$PROCESS_NAME"

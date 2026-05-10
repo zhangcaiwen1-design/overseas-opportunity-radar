@@ -239,7 +239,7 @@ describe('dashboard actions view model integration', () => {
           canonicalUrl: 'https://example.com/2',
         },
       ],
-      selectedItems: [{ id: 'selected-1', candidateId: 'candidate-1', title: '精选一', status: 'completed' }],
+      selectedItems: [{ id: 'selected-1', candidateId: 'candidate-1', title: '精选一', status: 'published' }],
       artifacts: [{ artifactType: 'selected_html', publicUrl: 'https://cdn.example.com/selected.html' }],
       pushDigest: '今日海外商业机会雷达｜2026-05-08',
       pushStatus: { feishu: true, wecom: false, wxpusher: false },

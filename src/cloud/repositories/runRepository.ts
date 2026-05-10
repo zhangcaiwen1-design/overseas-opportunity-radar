@@ -1,3 +1,4 @@
+import { PostgrestError } from '@supabase/supabase-js';
 import type { CloudRun, CreateRunInput } from '../types';
 
 interface InsertResult {
@@ -49,6 +50,14 @@ interface SupabaseLike {
       };
     };
   };
+}
+
+function isMissingRunFieldError(error: unknown) {
+  if (!(error instanceof PostgrestError)) {
+    return false;
+  }
+
+  return error.code === 'PGRST204' && /selected_count|pool_count|summary_text|error_message/.test(error.message);
 }
 
 export function createRunRepository(supabase: SupabaseLike) {
@@ -124,17 +133,20 @@ export function createRunRepository(supabase: SupabaseLike) {
       }
     },
     async getLatest(): Promise<CloudRun | null> {
-      const { data, error } = await supabase
-        .from('runs')
-        .select('id,date_key,trigger_type,status,started_at,summary_text,error_message')
-        .order('started_at', { ascending: false })
-        .limit(1);
+      const loadRows = async (columns: string) =>
+        supabase.from('runs').select(columns).order('started_at', { ascending: false }).limit(1);
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,date_key,trigger_type,status,started_at,summary_text,error_message');
+
+      if (result.error && isMissingRunFieldError(result.error)) {
+        result = await loadRows('id,date_key,trigger_type,status,started_at');
       }
 
-      const row = data?.[0];
+      if (result.error) {
+        throw result.error;
+      }
+
+      const row = result.data?.[0];
       if (!row) {
         return null;
       }
@@ -150,17 +162,20 @@ export function createRunRepository(supabase: SupabaseLike) {
       };
     },
     async listRecent(limit = 20): Promise<Array<CloudRun & { startedAt?: string; selectedCount: number; poolCount: number }>> {
-      const { data, error } = await supabase
-        .from('runs')
-        .select('id,date_key,trigger_type,status,started_at,selected_count,pool_count,summary_text,error_message')
-        .order('started_at', { ascending: false })
-        .limit(limit);
+      const loadRows = async (columns: string) =>
+        supabase.from('runs').select(columns).order('started_at', { ascending: false }).limit(limit);
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,date_key,trigger_type,status,started_at,selected_count,pool_count,summary_text,error_message');
+
+      if (result.error && isMissingRunFieldError(result.error)) {
+        result = await loadRows('id,date_key,trigger_type,status,started_at');
       }
 
-      return (data ?? []).map((row) => ({
+      if (result.error) {
+        throw result.error;
+      }
+
+      return (result.data ?? []).map((row) => ({
         id: row.id,
         dateKey: row.date_key,
         triggerType: row.trigger_type,

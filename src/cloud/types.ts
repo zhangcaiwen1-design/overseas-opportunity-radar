@@ -5,7 +5,7 @@ export type PushChannel = 'feishu' | 'wecom' | 'wxpusher';
 export type CloudPublicationChannel = 'site' | 'wechat' | 'douyin';
 export type CloudContentVariantStatus = 'draft' | 'reviewed' | 'published' | 'failed';
 export type CloudPublicationAction = 'publish' | 'retry' | 'withdraw';
-export type CloudLeadEventType = 'subscribe' | 'consult';
+export type CloudLeadEventType = 'subscribe' | 'consult' | 'community_join' | 'partner_inquiry';
 
 export interface CloudRun {
   id: string;

@@ -1,3 +1,4 @@
+import { PostgrestError } from '@supabase/supabase-js';
 import type { CloudLeadEvent, CloudLeadEventType, CloudPublicationChannel } from '../types';
 
 interface LeadEventRow {
@@ -15,6 +16,11 @@ interface InsertResult {
   error: unknown;
 }
 
+interface SelectLimitResult {
+  data: LeadEventRow[] | null;
+  error: unknown;
+}
+
 interface SupabaseLike {
   from(table: string): {
     insert(value: unknown): {
@@ -24,10 +30,7 @@ interface SupabaseLike {
     };
     select(columns: string): {
       order(column: string, options?: { ascending: boolean }): {
-        limit(count: number): Promise<{
-          data: LeadEventRow[] | null;
-          error: unknown;
-        }>;
+        limit(count: number): Promise<SelectLimitResult>;
       };
     };
   };
@@ -43,6 +46,14 @@ function mapLeadEvent(row: LeadEventRow): CloudLeadEvent {
     notes: row.notes ?? '',
     createdAt: row.created_at,
   };
+}
+
+function isMissingLeadEventFieldError(error: unknown) {
+  if (!(error instanceof PostgrestError)) {
+    return false;
+  }
+
+  return error.code === 'PGRST204' && /contact|notes/.test(error.message);
 }
 
 export function createLeadEventRepository(supabase: SupabaseLike) {
@@ -73,17 +84,24 @@ export function createLeadEventRepository(supabase: SupabaseLike) {
       return mapLeadEvent(data);
     },
     async listRecent(limit = 20): Promise<CloudLeadEvent[]> {
-      const { data, error } = await supabase
-        .from('lead_events')
-        .select('id,source_channel,page_type,event_type,contact,notes,created_at')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+      const loadRows = async (columns: string) =>
+        supabase
+          .from('lead_events')
+          .select(columns)
+          .order('created_at', { ascending: false })
+          .limit(limit);
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,source_channel,page_type,event_type,contact,notes,created_at');
+
+      if (result.error && isMissingLeadEventFieldError(result.error)) {
+        result = await loadRows('id,source_channel,page_type,event_type,created_at');
       }
 
-      return (data ?? []).map(mapLeadEvent);
+      if (result.error) {
+        throw result.error;
+      }
+
+      return (result.data ?? []).map(mapLeadEvent);
     },
   };
 }
