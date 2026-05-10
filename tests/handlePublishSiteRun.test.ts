@@ -39,6 +39,7 @@ describe('handlePublishSiteRun', () => {
   };
   const selectedItemRepository = {
     listByRun: vi.fn(),
+    updateById: vi.fn(),
   };
   const candidateRepository = {
     listByRun: vi.fn(),
@@ -91,6 +92,13 @@ describe('handlePublishSiteRun', () => {
       operator: 'admin',
       createdAt: '2026-05-09T03:30:00.000Z',
     });
+    selectedItemRepository.updateById.mockResolvedValue({
+      id: 'selected-1',
+      candidateId: 'candidate-1',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'published',
+    });
   });
 
   it('creates a published site variant and publication log when no site variant exists yet', async () => {
@@ -129,6 +137,7 @@ describe('handlePublishSiteRun', () => {
       responseSummary: 'published to site',
       operator: 'admin',
     });
+    expect(selectedItemRepository.updateById).toHaveBeenCalledWith('selected-1', { status: 'published' });
     expect(result).toEqual({
       runId: 'run-1',
       selectedItemId: 'selected-1',
@@ -193,6 +202,29 @@ describe('handlePublishSiteRun', () => {
     expect(publicationLogRepository.create).not.toHaveBeenCalled();
   });
 
+  it('falls back to selected item publish state when content_variants is missing', async () => {
+    contentVariantRepository.listByRun.mockRejectedValue({
+      code: 'PGRST205',
+      message: "Could not find the table 'public.content_variants' in the schema cache",
+    });
+
+    const { handlePublishSiteRun } = await import('../src/cloud/routeHandlers/handlePublishSiteRun');
+    const result = await handlePublishSiteRun('run-1', 'selected-1', 'admin');
+
+    expect(contentVariantRepository.create).not.toHaveBeenCalled();
+    expect(contentVariantRepository.updateById).not.toHaveBeenCalled();
+    expect(publicationLogRepository.create).not.toHaveBeenCalled();
+    expect(selectedItemRepository.updateById).toHaveBeenCalledWith('selected-1', { status: 'published' });
+    expect(result).toEqual({
+      runId: 'run-1',
+      selectedItemId: 'selected-1',
+      contentVariantId: 'selected-1',
+      action: 'publish',
+      channel: 'site',
+      publishedAt: '2026-05-09T03:30:00.000Z',
+    });
+  });
+
   it('withdraws an existing published site variant and records a withdraw log', async () => {
     contentVariantRepository.listByRun.mockResolvedValue([
       {
@@ -243,6 +275,37 @@ describe('handlePublishSiteRun', () => {
       runId: 'run-1',
       selectedItemId: 'selected-1',
       contentVariantId: 'variant-1',
+      action: 'withdraw',
+      channel: 'site',
+    });
+  });
+
+  it('falls back to selected item state when withdrawing while content_variants is missing', async () => {
+    selectedItemRepository.listByRun.mockResolvedValue([
+      { id: 'selected-1', candidateId: 'candidate-1', slug: 'alpha', title: 'Alpha', status: 'published' },
+    ]);
+    selectedItemRepository.updateById.mockResolvedValue({
+      id: 'selected-1',
+      candidateId: 'candidate-1',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'completed',
+    });
+    contentVariantRepository.listByRun.mockRejectedValue({
+      code: 'PGRST205',
+      message: "Could not find the table 'public.content_variants' in the schema cache",
+    });
+
+    const { handleWithdrawSiteRun } = await import('../src/cloud/routeHandlers/handleWithdrawSiteRun');
+    const result = await handleWithdrawSiteRun('run-1', 'selected-1', 'admin');
+
+    expect(contentVariantRepository.updateById).not.toHaveBeenCalled();
+    expect(publicationLogRepository.create).not.toHaveBeenCalled();
+    expect(selectedItemRepository.updateById).toHaveBeenCalledWith('selected-1', { status: 'completed' });
+    expect(result).toEqual({
+      runId: 'run-1',
+      selectedItemId: 'selected-1',
+      contentVariantId: 'selected-1',
       action: 'withdraw',
       channel: 'site',
     });

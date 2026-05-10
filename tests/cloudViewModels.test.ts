@@ -135,7 +135,7 @@ describe('buildTodayDashboardViewModel', () => {
     expect(viewModel.overview.publishedSiteVariantCount).toBe(1);
     expect(viewModel.overview.publicationSuccessCount).toBe(1);
     expect(viewModel.overview.publicationFailureCount).toBe(1);
-    expect(viewModel.overview.latestPublicationSummary).toBe('site publish failed：Build failed');
+    expect(viewModel.overview.latestPublicationSummary).toBe('网站发布失败：Build failed');
     expect(viewModel.overview.recentLeadEventCount).toBe(2);
     expect(viewModel.overview.recentLeadEventSummary).toBe('subscribe、consult');
   });
@@ -190,9 +190,36 @@ describe('buildTodayDashboardViewModel', () => {
     expect(viewModel.overview.healthStatus).toBe('需要关注');
     expect(viewModel.overview.healthSummary).toBe('当前发布失败，请先处理发布异常。');
     expect(viewModel.overview.currentFailureStage).toBe('publish');
-    expect(viewModel.overview.currentFailureSummary).toBe('site publish failed：Build failed');
+    expect(viewModel.overview.currentFailureSummary).toBe('网站发布失败：Build failed');
     expect(viewModel.overview.recoveryAction).toBe('publish');
     expect(viewModel.overview.recoverySelectedItemId).toBe('selected-1');
+  });
+
+  it('sanitizes raw run failure messages for dashboard display', () => {
+    const viewModel = buildTodayDashboardViewModel({
+      run: {
+        id: 'run-1',
+        dateKey: '2026-05-08',
+        status: 'failed',
+        triggerType: 'cron',
+        summaryText: '',
+        errorMessage: 'browserType.launch: Host system is missing dependencies\n╔════════════════════════════════╗\nPlease run the following command to install\n  npx playwright install --with-deps',
+        startedAt: '2026-05-08T09:00:00.000Z',
+      },
+      candidates: [],
+      selectedItems: [],
+      artifacts: [],
+      pushDigest: '今日还没有推送文稿。',
+      pushDecision: null,
+      pushExecution: null,
+      pushStatus: { feishu: false, wecom: false, wxpusher: false },
+      pushLogs: [],
+      historyRuns: [],
+    });
+
+    expect(viewModel.overview.errorMessage).toBe('浏览器运行环境缺失，请在服务器安装 Playwright 浏览器及依赖后重试。');
+    expect(viewModel.overview.recentFailureMessage).toBe('浏览器运行环境缺失，请在服务器安装 Playwright 浏览器及依赖后重试。');
+    expect(viewModel.overview.currentFailureSummary).toBe('运行失败：浏览器运行环境缺失，请在服务器安装 Playwright 浏览器及依赖后重试。');
   });
 
   it('groups today run data into status, candidate list, selected list, and push preview blocks', () => {
@@ -331,7 +358,7 @@ describe('buildTodayDashboardViewModel', () => {
       healthStatus: '需要关注',
       healthSummary: '最近一次历史运行失败，请先处理异常。',
       currentFailureStage: 'run',
-      currentFailureSummary: 'run failed：timeout',
+      currentFailureSummary: '运行失败：timeout',
       recoveryAction: 'collect',
       recoverySelectedItemId: '',
       recoverySuggestion: '可通过重新采集、重新生成或重新推送来补跑失败 run。',

@@ -1,3 +1,4 @@
+import { PostgrestError } from '@supabase/supabase-js';
 import type { CloudPublicationAction, CloudPublicationChannel, CloudPublicationLog } from '../types';
 
 interface PublicationLogRow {
@@ -7,7 +8,7 @@ interface PublicationLogRow {
   action: CloudPublicationAction;
   status: string;
   response_summary: string;
-  operator: string;
+  operator?: string;
   created_at?: string;
 }
 
@@ -42,9 +43,17 @@ function mapPublicationLog(row: PublicationLogRow): CloudPublicationLog {
     action: row.action,
     status: row.status,
     responseSummary: row.response_summary,
-    operator: row.operator,
+    operator: row.operator ?? '',
     createdAt: row.created_at,
   };
+}
+
+function isMissingPublicationLogFieldError(error: unknown) {
+  if (!(error instanceof PostgrestError)) {
+    return false;
+  }
+
+  return error.code === 'PGRST204' && /operator/.test(error.message);
 }
 
 export function createPublicationLogRepository(supabase: SupabaseLike) {
@@ -81,17 +90,20 @@ export function createPublicationLogRepository(supabase: SupabaseLike) {
         return [];
       }
 
-      const { data, error } = await supabase
-        .from('publication_logs')
-        .select('id,content_variant_id,channel,action,status,response_summary,operator,created_at')
-        .in('content_variant_id', contentVariantIds)
-        .order('created_at', { ascending: false });
+      const loadRows = async (columns: string) =>
+        supabase.from('publication_logs').select(columns).in('content_variant_id', contentVariantIds).order('created_at', { ascending: false });
 
-      if (error) {
-        throw error;
+      let result = await loadRows('id,content_variant_id,channel,action,status,response_summary,operator,created_at');
+
+      if (result.error && isMissingPublicationLogFieldError(result.error)) {
+        result = await loadRows('id,content_variant_id,channel,action,status,response_summary,created_at');
       }
 
-      return (data ?? []).map(mapPublicationLog);
+      if (result.error) {
+        throw result.error;
+      }
+
+      return (result.data ?? []).map(mapPublicationLog);
     },
   };
 }

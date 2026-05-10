@@ -1,6 +1,6 @@
 import React from 'react';
 import { SettingsForm } from './SettingsForm';
-import { loadDashboardData } from '../../src/cloud/queries/loadDashboardData';
+import { loadSettingsPageData } from '../../src/cloud/queries/loadSettingsPageData';
 import { buildSettingsPageViewModel } from '../../src/cloud/viewmodels/buildSettingsPageViewModel';
 
 export const dynamic = 'force-dynamic';
@@ -18,14 +18,14 @@ function getEnvironmentTargetCopy(environment: 'local' | 'staging' | 'production
 }
 
 export default async function SettingsPage() {
-  const dashboardData = await loadDashboardData();
+  const settingsData = await loadSettingsPageData();
   const viewModel = buildSettingsPageViewModel({
-    timezone: dashboardData.timezone,
-    dailyRunTime: dashboardData.dailyRunTime,
-    openaiBaseUrl: dashboardData.openaiBaseUrl,
-    openaiApiKeyConfigured: dashboardData.openaiApiKeyConfigured,
-    configuredChannels: dashboardData.configuredChannels,
-    allPushConfigs: dashboardData.allPushConfigs,
+    timezone: settingsData.timezone,
+    dailyRunTime: settingsData.dailyRunTime,
+    openaiBaseUrl: settingsData.openaiBaseUrl,
+    openaiApiKeyConfigured: settingsData.openaiApiKeyConfigured,
+    configuredChannels: settingsData.configuredChannels,
+    allPushConfigs: settingsData.allPushConfigs,
   });
 
   return (
@@ -35,21 +35,21 @@ export default async function SettingsPage() {
           <span className="page-kicker">Settings</span>
           <h1>运行与推送配置</h1>
           <p>这里会集中管理时区、执行时间、OpenAI 网关和各推送渠道配置。</p>
-          <p>当前环境：{dashboardData.preflight.environmentLabel}</p>
-          <p>{getEnvironmentTargetCopy(dashboardData.preflight.environment)}</p>
-          <p>{dashboardData.preflight.summary}</p>
-          <p>{dashboardData.preflight.hint}</p>
-          {dashboardData.preflight.missingKeys.length > 0 ? (
+          <p>当前环境：{settingsData.preflight.environmentLabel}</p>
+          <p>{getEnvironmentTargetCopy(settingsData.preflight.environment)}</p>
+          <p>{settingsData.preflight.summary}</p>
+          <p>{settingsData.preflight.hint}</p>
+          {settingsData.preflight.missingKeys.length > 0 ? (
             <div>
               <strong>部署阻断项</strong>
               <ul>
-                {dashboardData.preflight.missingKeys.map((key) => (
+                {settingsData.preflight.missingKeys.map((key) => (
                   <li key={key}>{key}</li>
                 ))}
               </ul>
             </div>
           ) : null}
-          {dashboardData.cloudReady ? (
+          {settingsData.cloudReady ? (
             <div>
               <strong>上线检查清单</strong>
               <ul>
@@ -65,7 +65,7 @@ export default async function SettingsPage() {
           <div className="settings-hero__rail-grid">
             <div>
               <span>环境</span>
-              <strong>{dashboardData.preflight.environmentLabel}</strong>
+              <strong>{settingsData.preflight.environmentLabel}</strong>
             </div>
             <div>
               <span>时区</span>
@@ -94,7 +94,7 @@ export default async function SettingsPage() {
           secretPayload: '',
           hasSavedSecret: channel.hasSavedSecret,
         }))}
-        cloudReady={dashboardData.cloudReady}
+        cloudReady={settingsData.cloudReady}
       />
     </section>
   );

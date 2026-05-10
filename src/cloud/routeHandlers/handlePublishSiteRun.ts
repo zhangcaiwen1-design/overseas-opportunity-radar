@@ -1,3 +1,4 @@
+import { isCloudSchemaMissingError } from '../cloudEnv';
 import { createArtifactRepository } from '../repositories/artifactRepository';
 import { createCandidateRepository } from '../repositories/candidateRepository';
 import { createContentVariantRepository } from '../repositories/contentVariantRepository';
@@ -13,12 +14,22 @@ export async function handlePublishSiteRun(runId: string, selectedItemId: string
   const artifactRepository = createArtifactRepository(supabase as never);
   const publicationLogRepository = createPublicationLogRepository(supabase as never);
 
-  const [variants, selectedItems, candidates, artifacts] = await Promise.all([
-    contentVariantRepository.listByRun(runId),
+  const [variantsResult, selectedItems, candidates, artifacts] = await Promise.all([
+    contentVariantRepository.listByRun(runId).then(
+      (variants) => ({ variants, schemaMissing: false }),
+      (error) => {
+        if (isCloudSchemaMissingError(error)) {
+          return { variants: [], schemaMissing: true };
+        }
+
+        throw error;
+      },
+    ),
     selectedItemRepository.listByRun(runId),
     candidateRepository.listByRun(runId),
     artifactRepository.listByRun(runId),
   ]);
+  const variants = variantsResult.variants;
 
   const selectedItem = selectedItems.find((item) => item.id === selectedItemId);
   if (!selectedItem) {
@@ -41,6 +52,19 @@ export async function handlePublishSiteRun(runId: string, selectedItemId: string
 
   const publishedAt = new Date().toISOString();
   const existingVariant = variants.find((variant) => variant.channel === 'site' && variant.selectedItemId === selectedItemId);
+
+  if (variantsResult.schemaMissing) {
+    const updatedSelectedItem = await selectedItemRepository.updateById(selectedItemId, { status: 'published' });
+
+    return {
+      runId,
+      selectedItemId,
+      contentVariantId: updatedSelectedItem.id,
+      action: 'publish' as const,
+      channel: 'site' as const,
+      publishedAt,
+    };
+  }
 
   const contentVariant = existingVariant
     ? await contentVariantRepository.updateById(existingVariant.id, {
@@ -70,10 +94,12 @@ export async function handlePublishSiteRun(runId: string, selectedItemId: string
     operator,
   });
 
+  const updatedSelectedItem = await selectedItemRepository.updateById(selectedItemId, { status: 'published' });
+
   return {
     runId,
     selectedItemId,
-    contentVariantId: contentVariant.id,
+    contentVariantId: contentVariant.id || updatedSelectedItem.id,
     action: 'publish' as const,
     channel: 'site' as const,
     publishedAt: contentVariant.publishedAt ?? publishedAt,

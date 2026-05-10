@@ -4,6 +4,13 @@ import type { CloudSelectedItem } from '../types';
 interface SupabaseLike {
   from(table: string): {
     insert(value: unknown): { select(columns: string): { order(column: string): Promise<{ data: Array<{ id: string; candidate_id: string; slug?: string; title: string; status: string }> | null; error: unknown }> } };
+    update(value: unknown): {
+      eq(column: string, value: string): {
+        select(columns: string): {
+          single(): Promise<{ data: { id: string; candidate_id: string; slug?: string; title: string; status: string } | null; error: unknown }>;
+        };
+      };
+    };
     delete(): {
       eq(column: string, value: string): Promise<{ error: unknown }>;
     };
@@ -66,6 +73,21 @@ export function createSelectedItemRepository(supabase: SupabaseLike) {
         title: row.title,
         status: row.status,
       }));
+    },
+    async updateById(id: string, input: { status: string }): Promise<CloudSelectedItem> {
+      const { data, error } = await supabase.from('selected_items').update({ status: input.status }).eq('id', id).select('id,candidate_id,slug,title,status').single();
+
+      if (error || !data) {
+        throw error ?? new Error('Failed to update selected item');
+      }
+
+      return {
+        id: data.id,
+        candidateId: data.candidate_id,
+        slug: data.slug,
+        title: data.title,
+        status: data.status,
+      };
     },
     async deleteByRunId(runId: string) {
       const { error } = await supabase.from('selected_items').delete().eq('run_id', runId);

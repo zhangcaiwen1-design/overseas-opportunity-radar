@@ -58,6 +58,9 @@ export default async function HomePage() {
           <span className="dashboard-hero__eyebrow">内容运营控制台</span>
           <strong>{dashboardData.preflight.environmentLabel}</strong>
           <p>{dashboardData.preflight.summary}</p>
+          <p>
+            客户端预览：<a href="/site" target="_blank" rel="noreferrer">打开客户站</a>
+          </p>
           <div className="dashboard-hero__rail-grid">
             <div>
               <span>建议动作</span>

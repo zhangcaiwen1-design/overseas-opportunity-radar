@@ -3,6 +3,7 @@ import { isCloudSchemaMissingError } from '../cloud/cloudEnv';
 import { createArtifactRepository } from '../cloud/repositories/artifactRepository';
 import { createCandidateRepository } from '../cloud/repositories/candidateRepository';
 import { createContentVariantRepository } from '../cloud/repositories/contentVariantRepository';
+import { createRunRepository } from '../cloud/repositories/runRepository';
 import { createSelectedItemRepository } from '../cloud/repositories/selectedItemRepository';
 import { createSupabaseServerClient } from '../cloud/supabase/serverClient';
 
@@ -34,6 +35,10 @@ function getSlug(storagePath: string | undefined, fallbackTitle: string) {
   return fallbackTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'opportunity';
 }
 
+function comparePublishedAt(left: { publishedAt?: string }, right: { publishedAt?: string }) {
+  return (right.publishedAt ?? '').localeCompare(left.publishedAt ?? '');
+}
+
 export async function loadSiteContentIndex(): Promise<SiteContentIndex> {
   let supabase;
 
@@ -52,24 +57,27 @@ export async function loadSiteContentIndex(): Promise<SiteContentIndex> {
   }
 
   const contentVariantRepository = createContentVariantRepository(supabase as never);
+  const candidateRepository = createCandidateRepository(supabase as never);
+  const selectedItemRepository = createSelectedItemRepository(supabase as never);
+  const artifactRepository = createArtifactRepository(supabase as never);
+  const runRepository = createRunRepository(supabase as never);
 
   let publishedVariants;
+  let useSelectedItemFallback = false;
   try {
     const variants = await contentVariantRepository.listPublishedByChannel('site');
     publishedVariants = variants.filter((variant) => variant.status === 'published');
   } catch (error) {
     if (isCloudSchemaMissingError(error)) {
-      return {
-        generatedAt: '',
-        dateKey: '',
-        items: [],
-      };
+      publishedVariants = [];
+      useSelectedItemFallback = true;
+    } else {
+      throw error;
     }
-
-    throw error;
   }
 
-  if (publishedVariants.length === 0) {
+  const fallbackRuns = useSelectedItemFallback ? await runRepository.listRecent() : [];
+  if (!fallbackRuns.length && !publishedVariants.length) {
     return {
       generatedAt: '',
       dateKey: '',
@@ -77,11 +85,9 @@ export async function loadSiteContentIndex(): Promise<SiteContentIndex> {
     };
   }
 
-  const candidateRepository = createCandidateRepository(supabase as never);
-  const selectedItemRepository = createSelectedItemRepository(supabase as never);
-  const artifactRepository = createArtifactRepository(supabase as never);
-
-  const runIds = Array.from(new Set(publishedVariants.map((variant) => variant.runId)));
+  const runIds = useSelectedItemFallback
+    ? Array.from(new Set(fallbackRuns.map((run) => run.id)))
+    : Array.from(new Set(publishedVariants.map((variant) => variant.runId)));
   const runDataById = new Map<
     string,
     {
@@ -136,40 +142,80 @@ export async function loadSiteContentIndex(): Promise<SiteContentIndex> {
     });
   }
 
-  const items = publishedVariants
-    .map((variant) => {
-      if (!variant.selectedItemId) {
-        return null;
-      }
+  const items = useSelectedItemFallback
+    ? fallbackRuns
+        .flatMap((run) => {
+          const runData = runDataById.get(run.id);
+          if (!runData) {
+            return [];
+          }
 
-      const runData = runDataById.get(variant.runId);
-      if (!runData) {
-        return null;
-      }
+          return Array.from(runData.selectedItemById.values())
+            .filter((selectedItem) => selectedItem.status === 'published')
+            .map((selectedItem) => {
+              if (!selectedItem.candidateId) {
+                return null;
+              }
 
-      const selectedItem = runData.selectedItemById.get(variant.selectedItemId);
-      const candidate = variant.candidateId ? runData.candidateById.get(variant.candidateId) : undefined;
-      const artifacts = runData.artifactsBySelectedItemId.get(variant.selectedItemId);
-      const slug = selectedItem?.slug ?? artifacts?.slug ?? getSlug(undefined, variant.title);
+              const candidate = runData.candidateById.get(selectedItem.candidateId);
+              const artifacts = runData.artifactsBySelectedItemId.get(selectedItem.id);
+              const slug = selectedItem.slug ?? artifacts?.slug ?? getSlug(undefined, selectedItem.title);
 
-      if (!selectedItem || !candidate || !artifacts?.png || !artifacts?.md || !artifacts.htmlStoragePath) {
-        return null;
-      }
+              if (!candidate || !artifacts?.png || !artifacts?.md || !artifacts.htmlStoragePath) {
+                return null;
+              }
 
-      return {
-        id: selectedItem.id,
-        slug,
-        title: variant.title,
-        summary: candidate.summary,
-        coverImageUrl: artifacts.png,
-        articleUrl: `/site/${slug}`,
-        markdownUrl: artifacts.md,
-        canonicalSourceUrl: candidate.canonicalUrl,
-        publishedAt: variant.publishedAt ?? '',
-        bodyHtmlStoragePath: artifacts.htmlStoragePath,
-      };
-    })
-    .filter((item): item is SiteContentIndexItem => item !== null);
+              return {
+                id: selectedItem.id,
+                slug,
+                title: selectedItem.title,
+                summary: candidate.summary,
+                coverImageUrl: artifacts.png,
+                articleUrl: `/site/${slug}`,
+                markdownUrl: artifacts.md,
+                canonicalSourceUrl: candidate.canonicalUrl,
+                publishedAt: run.startedAt ?? '',
+                bodyHtmlStoragePath: artifacts.htmlStoragePath,
+              };
+            })
+            .filter((item): item is SiteContentIndexItem => item !== null);
+        })
+        .sort(comparePublishedAt)
+    : publishedVariants
+        .map((variant) => {
+          if (!variant.selectedItemId) {
+            return null;
+          }
+
+          const runData = runDataById.get(variant.runId);
+          if (!runData) {
+            return null;
+          }
+
+          const selectedItem = runData.selectedItemById.get(variant.selectedItemId);
+          const candidate = variant.candidateId ? runData.candidateById.get(variant.candidateId) : undefined;
+          const artifacts = runData.artifactsBySelectedItemId.get(variant.selectedItemId);
+          const slug = selectedItem?.slug ?? artifacts?.slug ?? getSlug(undefined, variant.title);
+
+          if (!selectedItem || !candidate || !artifacts?.png || !artifacts?.md || !artifacts.htmlStoragePath) {
+            return null;
+          }
+
+          return {
+            id: selectedItem.id,
+            slug,
+            title: variant.title,
+            summary: candidate.summary,
+            coverImageUrl: artifacts.png,
+            articleUrl: `/site/${slug}`,
+            markdownUrl: artifacts.md,
+            canonicalSourceUrl: candidate.canonicalUrl,
+            publishedAt: variant.publishedAt ?? '',
+            bodyHtmlStoragePath: artifacts.htmlStoragePath,
+          };
+        })
+        .filter((item): item is SiteContentIndexItem => item !== null)
+        .sort(comparePublishedAt);
 
   return {
     generatedAt: items[0]?.publishedAt ?? '',

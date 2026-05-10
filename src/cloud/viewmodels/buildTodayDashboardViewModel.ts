@@ -1,6 +1,59 @@
+import type { CloudLeadEventType } from '../types';
 import type { RunPushDecision } from '../services/buildRunPushDecision';
 
 const pushChannels = ['feishu', 'wecom', 'wxpusher'] as const;
+const publicationChannelLabels = {
+  site: '网站',
+  wechat: '公众号',
+  douyin: '抖音',
+} as const;
+const publicationActionLabels = {
+  publish: '发布',
+  retry: '重试',
+  withdraw: '撤回',
+} as const;
+
+function normalizeFailureMessage(message?: string) {
+  if (!message) {
+    return '';
+  }
+
+  const normalized = message
+    .replace(/\u001B\[[0-9;]*[A-Za-z]/g, ' ')
+    .replace(/[\u2500-\u257F]/g, ' ')
+    .replace(/\r/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+
+  if (!normalized) {
+    return '';
+  }
+
+  const lowerCased = normalized.toLowerCase();
+  if (
+    lowerCased.includes('playwright')
+    || lowerCased.includes('browsertype.launch')
+    || lowerCased.includes('install --with-deps')
+    || lowerCased.includes('install-deps')
+    || lowerCased.includes('host system is missing dependencies')
+    || lowerCased.includes('please run the following command to install')
+  ) {
+    return '浏览器运行环境缺失，请在服务器安装 Playwright 浏览器及依赖后重试。';
+  }
+
+  const firstUsefulLine = normalized
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .find((line) => line && !/^at\s/.test(line) && !/^node:\S+/.test(line) && !/^\d+\s*\|/.test(line));
+
+  const cleaned = (firstUsefulLine ?? '').replace(/^error:\s*/i, '');
+  if (!cleaned) {
+    return '';
+  }
+
+  return cleaned.length > 120 ? `${cleaned.slice(0, 120).trim()}...` : cleaned;
+}
 
 function summarizePushExecutionStatus(status: Record<PushChannel, boolean>) {
   const successfulChannels = Object.entries(status)
@@ -35,7 +88,8 @@ function summarizeLatestPublicationLog(
     return '';
   }
 
-  return `${latestLog.channel} ${latestLog.action} ${latestLog.status}：${latestLog.responseSummary || '无返回摘要'}`;
+  const summary = normalizeFailureMessage(latestLog.responseSummary) || '无返回摘要';
+  return `${publicationChannelLabels[latestLog.channel]}${publicationActionLabels[latestLog.action]}${latestLog.status === 'success' ? '成功' : '失败'}：${summary}`;
 }
 
 export function buildTodayDashboardViewModel(input: {
@@ -92,7 +146,7 @@ export function buildTodayDashboardViewModel(input: {
     id: string;
     sourceChannel: string;
     pageType: string;
-    eventType: 'subscribe' | 'consult';
+    eventType: CloudLeadEventType;
     contact: string;
     notes: string;
     createdAt?: string;
@@ -124,6 +178,8 @@ export function buildTodayDashboardViewModel(input: {
     : null;
   const recentLeadEventCount = input.recentLeadEvents?.length ?? 0;
   const recentLeadEventSummary = Array.from(new Set((input.recentLeadEvents ?? []).map((item) => item.eventType))).join('、');
+  const currentRunErrorMessage = normalizeFailureMessage(input.run.errorMessage);
+  const recentFailureErrorMessage = normalizeFailureMessage(recentFailureRun?.errorMessage);
 
   return {
     statusCard: {
@@ -137,13 +193,13 @@ export function buildTodayDashboardViewModel(input: {
     overview: {
       startedAt: input.run.startedAt ?? '',
       summaryText: input.run.summaryText ?? '',
-      errorMessage: input.run.errorMessage ?? '',
+      errorMessage: currentRunErrorMessage,
       configuredPushChannels: pushChannels.filter((channel) => input.pushStatus[channel]).length,
       successfulPushChannels: input.pushLogs?.filter((log) => log.status === 'success').length ?? 0,
       failedPushChannels: input.pushLogs?.filter((log) => log.status === 'failed').length ?? 0,
       lastSuccessfulRunStartedAt: lastSuccessfulRun?.startedAt ?? '',
       recentFailureStartedAt: recentFailureRun?.startedAt ?? '',
-      recentFailureMessage: recentFailureRun?.errorMessage ?? '',
+      recentFailureMessage: recentFailureErrorMessage,
       artifactReady,
       healthStatus: currentFailureRun || currentPublicationFailureLog || recentFailureRun ? '需要关注' : artifactReady ? '已就绪' : '待生成',
       healthSummary: currentFailureRun
@@ -157,11 +213,11 @@ export function buildTodayDashboardViewModel(input: {
               : '当前还没有生成成稿产物，请先完成选稿并生成。',
       currentFailureStage: currentFailureRun ? 'run' : currentPublicationFailureLog ? 'publish' : recentFailureRun ? 'run' : '',
       currentFailureSummary: currentFailureRun
-        ? `run failed：${currentFailureRun.errorMessage ?? '无返回摘要'}`
+        ? `运行失败：${currentRunErrorMessage || '无返回摘要'}`
         : currentPublicationFailureLog
           ? summarizeLatestPublicationLog([currentPublicationFailureLog])
           : recentFailureRun
-            ? `run failed：${recentFailureRun.errorMessage ?? '无返回摘要'}`
+            ? `运行失败：${recentFailureErrorMessage || '无返回摘要'}`
             : '',
       recoveryAction: (currentFailureRun ? 'generate' : currentPublicationFailureLog ? 'publish' : recentFailureRun ? 'collect' : '') as RecoveryAction,
       recoverySelectedItemId: failedPublicationVariant?.selectedItemId ?? '',
@@ -194,7 +250,7 @@ export function buildTodayDashboardViewModel(input: {
 
       return {
         ...item,
-        sitePublicationStatus: siteVariant?.status ?? '',
+        sitePublicationStatus: siteVariant?.status ?? (item.status === 'published' ? 'published' : ''),
       };
     }),
     artifactLinks: input.artifacts.map((artifact) => ({

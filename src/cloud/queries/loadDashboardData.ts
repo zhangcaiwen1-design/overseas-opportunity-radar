@@ -177,16 +177,24 @@ export async function loadDashboardData(): Promise<DashboardData> {
 
     const historyRuns = recentRuns.filter((item) => item.id !== run.id);
 
-    const [candidates, selectedItems, artifacts, currentPushLogs, currentContentVariants, recentLeadEvents] = await Promise.all([
+    const [candidates, selectedItems, artifacts, currentPushLogs, currentContentVariantsResult, recentLeadEventsResult] = await Promise.all([
       candidateRepository.listByRun(run.id),
       selectedItemRepository.listByRun(run.id),
       artifactRepository.listByRun(run.id),
       pushLogRepository.listByRunIds([run.id]),
-      contentVariantRepository.listByRun(run.id),
-      leadEventRepository.listRecent(5),
+      contentVariantRepository.listByRun(run.id).then(
+        (currentContentVariants) => ({ currentContentVariants }),
+        () => ({ currentContentVariants: [] as CloudContentVariant[] }),
+      ),
+      leadEventRepository.listRecent(5).then(
+        (recentLeadEvents) => ({ recentLeadEvents }),
+        () => ({ recentLeadEvents: [] as CloudLeadEvent[] }),
+      ),
     ]);
+    const currentContentVariants = currentContentVariantsResult.currentContentVariants;
+    const recentLeadEvents = recentLeadEventsResult.recentLeadEvents;
 
-    const currentPublicationLogs = await publicationLogRepository.listByContentVariantIds(currentContentVariants.map((item) => item.id));
+    const currentPublicationLogs = await publicationLogRepository.listByContentVariantIds(currentContentVariants.map((item) => item.id)).catch(() => [] as CloudPublicationLog[]);
 
     const pushDigestArtifact = artifacts.find((artifact) => artifact.artifactType === 'push_digest');
     const pushDecisionArtifact = artifacts.find((artifact) => artifact.artifactType === 'push_decision');

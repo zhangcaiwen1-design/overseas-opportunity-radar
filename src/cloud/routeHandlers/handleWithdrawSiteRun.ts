@@ -1,3 +1,4 @@
+import { isCloudSchemaMissingError } from '../cloudEnv';
 import { createCandidateRepository } from '../repositories/candidateRepository';
 import { createContentVariantRepository } from '../repositories/contentVariantRepository';
 import { createPublicationLogRepository } from '../repositories/publicationLogRepository';
@@ -11,11 +12,21 @@ export async function handleWithdrawSiteRun(runId: string, selectedItemId: strin
   const candidateRepository = createCandidateRepository(supabase as never);
   const publicationLogRepository = createPublicationLogRepository(supabase as never);
 
-  const [variants, selectedItems, candidates] = await Promise.all([
-    contentVariantRepository.listByRun(runId),
+  const [variantsResult, selectedItems, candidates] = await Promise.all([
+    contentVariantRepository.listByRun(runId).then(
+      (variants) => ({ variants, schemaMissing: false }),
+      (error) => {
+        if (isCloudSchemaMissingError(error)) {
+          return { variants: [], schemaMissing: true };
+        }
+
+        throw error;
+      },
+    ),
     selectedItemRepository.listByRun(runId),
     candidateRepository.listByRun(runId),
   ]);
+  const variants = variantsResult.variants;
 
   const selectedItem = selectedItems.find((item) => item.id === selectedItemId);
   if (!selectedItem) {
@@ -25,6 +36,22 @@ export async function handleWithdrawSiteRun(runId: string, selectedItemId: strin
   const candidate = selectedItem.candidateId ? candidates.find((item) => item.id === selectedItem.candidateId) : undefined;
   if (!candidate) {
     throw new Error(`Candidate not found for selected item: ${selectedItemId}`);
+  }
+
+  if (variantsResult.schemaMissing) {
+    if (selectedItem.status !== 'published') {
+      throw new Error('published site variant not found');
+    }
+
+    const updatedSelectedItem = await selectedItemRepository.updateById(selectedItemId, { status: 'completed' });
+
+    return {
+      runId,
+      selectedItemId,
+      contentVariantId: updatedSelectedItem.id,
+      action: 'withdraw' as const,
+      channel: 'site' as const,
+    };
   }
 
   const publishedVariant = variants.find(
