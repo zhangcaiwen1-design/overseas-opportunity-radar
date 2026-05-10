@@ -57,22 +57,26 @@ export function LeadCaptureButton(input: { pageType: 'site_index' | 'site_articl
 
   return (
     <div className="site-lead-capture">
-      <input
-        type="text"
-        placeholder="联系方式（微信 / 邮箱）"
-        value={contact}
-        onChange={(event) => setContact(event.target.value)}
-      />
-      <input
-        type="text"
-        placeholder="补充说明（选填）"
-        value={notes}
-        onChange={(event) => setNotes(event.target.value)}
-      />
-      <button type="button" onClick={handleClick} disabled={submitting}>
-        {input.label}
-      </button>
-      {status ? <span>{status}</span> : null}
+      <div className="site-lead-capture__fields">
+        <input
+          type="text"
+          placeholder="联系方式（微信 / 邮箱）"
+          value={contact}
+          onChange={(event) => setContact(event.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="补充说明（选填）"
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+        />
+      </div>
+      <div className="site-lead-capture__actions">
+        <button type="button" onClick={handleClick} disabled={submitting}>
+          {input.label}
+        </button>
+        {status ? <span>{status}</span> : null}
+      </div>
     </div>
   );
 }

@@ -154,6 +154,7 @@ export function DashboardActions(input: {
     () => buildRecommendedGenerateSelection({ selectedCandidateIds, recommendedCandidateIds }),
     [selectedCandidateIds, recommendedCandidateIds],
   );
+  const canCollect = !isCollecting;
   const canGenerate = input.cloudReady && input.runId !== 'uninitialized' && selectedCandidateIds.length > 0 && !isGenerating;
   const canGenerateRecommended = input.cloudReady && input.runId !== 'uninitialized' && recommendedGenerateSelection.length > 0 && !isGenerating;
   const canExecuteRecommendation =
@@ -533,7 +534,7 @@ export function DashboardActions(input: {
           placeholder="管理密钥 ADMIN_SECRET"
           type="password"
         />
-        <button type="button" onClick={handleCollect} disabled={!input.cloudReady || isCollecting}>
+        <button type="button" onClick={handleCollect} disabled={!canCollect}>
           {isCollecting ? '采集中...' : '手动采集'}
         </button>
         <button
@@ -571,7 +572,7 @@ export function DashboardActions(input: {
       </div>
 
       <div className="action-status-group">
-        {!input.cloudReady ? <p className="action-status">当前未配置云端环境，采集、生成、推送功能已禁用。</p> : null}
+        {!input.cloudReady ? <p className="action-status">当前无法读取现有云端运行数据。你仍可手动采集重新建立一轮数据，但生成、推送、发布会继续禁用，直到云端预检恢复正常。</p> : null}
         {collectStatus ? <p className="action-status">{collectStatus}</p> : null}
         {selectionStatus ? <p className="action-status">{selectionStatus}</p> : null}
         {generateStatus ? <p className="action-status">{generateStatus}</p> : null}

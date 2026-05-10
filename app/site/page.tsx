@@ -36,6 +36,7 @@ export default async function SitePage() {
         </div>
         <div className="site-hero__layout">
           <div className="site-hero__copy">
+            <span className="site-hero__label">Signal-to-Action Intelligence</span>
             <h1>海外商业机会内参</h1>
             <p>
               给正在找增量业务的人，一份更短、更准、更能行动的外网机会简报。我们把公开信号压缩成可读、可跟进、可咨询的每日精选。
@@ -72,7 +73,10 @@ export default async function SitePage() {
 
       <section className="site-panel site-panel--signal" aria-label="价值说明">
         <div className="site-panel__heading">
-          <span>你看到的不是资讯流，是行动信号。</span>
+          <div>
+            <span className="page-kicker">Why It Matters</span>
+            <span>你看到的不是资讯流，是行动信号。</span>
+          </div>
           <p>我们用更像投研快报的方式组织页面，让客户一眼知道这里卖的是什么价值。</p>
         </div>
         <div className="site-value-grid">

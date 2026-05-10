@@ -34,28 +34,55 @@ export default async function HomePage() {
 
   return (
     <section className="dashboard-grid">
-      <article className="card card--hero">
-        <span className="page-kicker">Today Dashboard</span>
-        <h1>海外商业机会雷达</h1>
-        <p>今日运行状态、候选池、精选区和推送预览都会集中显示在这里。</p>
-        <div className="hero-stats">
-          <div>
-            <strong>{viewModel.statusCard.candidateCount}</strong>
-            <span>候选数</span>
-          </div>
-          <div>
-            <strong>{viewModel.statusCard.selectedCount}</strong>
-            <span>已精选</span>
-          </div>
-          <div>
-            <strong>{viewModel.statusCard.status}</strong>
-            <span>运行状态</span>
+      <article className="card card--hero dashboard-hero">
+        <div className="dashboard-hero__main">
+          <span className="page-kicker">Today Dashboard</span>
+          <h1>海外商业机会雷达</h1>
+          <p>今日运行状态、候选池、精选区和推送预览都会集中显示在这里。</p>
+          <div className="hero-stats">
+            <div>
+              <strong>{viewModel.statusCard.candidateCount}</strong>
+              <span>候选数</span>
+            </div>
+            <div>
+              <strong>{viewModel.statusCard.selectedCount}</strong>
+              <span>已精选</span>
+            </div>
+            <div>
+              <strong>{viewModel.statusCard.status}</strong>
+              <span>运行状态</span>
+            </div>
           </div>
         </div>
+        <aside className="dashboard-hero__rail">
+          <span className="dashboard-hero__eyebrow">内容运营控制台</span>
+          <strong>{dashboardData.preflight.environmentLabel}</strong>
+          <p>{dashboardData.preflight.summary}</p>
+          <div className="dashboard-hero__rail-grid">
+            <div>
+              <span>建议动作</span>
+              <strong>{dashboardData.cloudReady ? '继续推进生成与发布' : '先处理部署阻断项'}</strong>
+            </div>
+            <div>
+              <span>当前定时</span>
+              <strong>{settingsViewModel.dailyRunTime}</strong>
+            </div>
+            <div>
+              <span>已启用推送</span>
+              <strong>{dashboardData.configuredChannels.length} 个</strong>
+            </div>
+          </div>
+        </aside>
       </article>
 
       <article className="card dashboard-overview-card">
-        <h2>上线前检查</h2>
+        <div className="section-heading">
+          <div>
+            <span className="page-kicker">Launch Readiness</span>
+            <h2>上线前检查</h2>
+          </div>
+          <p>把环境、时区、推送和网关放在一个地方看清楚。</p>
+        </div>
         <p>当前环境：{dashboardData.preflight.environmentLabel}</p>
         <p>环境预检：{dashboardData.preflight.summary}</p>
         <p>
@@ -67,7 +94,13 @@ export default async function HomePage() {
       </article>
 
       <article className="card dashboard-overview-card">
-        <h2>运行概览</h2>
+        <div className="section-heading">
+          <div>
+            <span className="page-kicker">Operations Snapshot</span>
+            <h2>运行概览</h2>
+          </div>
+          <p>把最近一轮内容生产、推送和转化状态压缩成一个视图。</p>
+        </div>
         <div className="dashboard-overview-grid">
           <div>
             <strong>最近启动时间</strong>

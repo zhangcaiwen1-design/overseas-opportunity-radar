@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import { isCloudSchemaMissingError } from '../cloud/cloudEnv';
 import { createArtifactRepository } from '../cloud/repositories/artifactRepository';
 import { createCandidateRepository } from '../cloud/repositories/candidateRepository';
@@ -34,7 +35,22 @@ function getSlug(storagePath: string | undefined, fallbackTitle: string) {
 }
 
 export async function loadSiteContentIndex(): Promise<SiteContentIndex> {
-  const supabase = createSupabaseServerClient();
+  let supabase;
+
+  try {
+    supabase = createSupabaseServerClient();
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return {
+        generatedAt: '',
+        dateKey: '',
+        items: [],
+      };
+    }
+
+    throw error;
+  }
+
   const contentVariantRepository = createContentVariantRepository(supabase as never);
 
   let publishedVariants;

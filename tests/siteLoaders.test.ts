@@ -1,3 +1,4 @@
+import { ZodError } from 'zod';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createSupabaseServerClient = vi.fn();
@@ -159,6 +160,33 @@ describe('site loaders', () => {
       dateKey: '',
       items: [],
     });
+    expect(listCandidatesByRun).not.toHaveBeenCalled();
+    expect(listSelectedItemsByRun).not.toHaveBeenCalled();
+    expect(listArtifactsByRun).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty site index when cloud env is not configured locally', async () => {
+    createSupabaseServerClient.mockImplementation(() => {
+      throw new ZodError([
+        {
+          code: 'invalid_type',
+          expected: 'string',
+          received: 'undefined',
+          path: ['NEXT_PUBLIC_SUPABASE_URL'],
+          message: 'Required',
+        },
+      ]);
+    });
+
+    const { loadSiteContentIndex } = await import('../src/site/loadSiteContentIndex');
+    const result = await loadSiteContentIndex();
+
+    expect(result).toEqual({
+      generatedAt: '',
+      dateKey: '',
+      items: [],
+    });
+    expect(listPublishedByChannel).not.toHaveBeenCalled();
     expect(listCandidatesByRun).not.toHaveBeenCalled();
     expect(listSelectedItemsByRun).not.toHaveBeenCalled();
     expect(listArtifactsByRun).not.toHaveBeenCalled();

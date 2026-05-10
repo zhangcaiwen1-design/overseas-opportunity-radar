@@ -1,3 +1,4 @@
+import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { SettingsForm } from '../app/settings/SettingsForm';
@@ -18,6 +19,7 @@ describe('SettingsForm', () => {
       />,
     );
 
-    expect(html).toContain('当前 cron：0 1 * * *');
+    expect(html).toContain('cron 预览：0 1 * * *');
+    expect(html).toContain('仅根据当前时区与每日执行时间计算，不表示云端定时任务已同步部署。');
   });
 });

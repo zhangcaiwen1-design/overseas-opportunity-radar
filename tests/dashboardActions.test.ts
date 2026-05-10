@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import { DashboardActions } from '../app/DashboardActions';
 import { buildTodayDashboardViewModel } from '../src/cloud/viewmodels/buildTodayDashboardViewModel';
 import {
   applyRecommendedSelection,
@@ -11,7 +14,34 @@ import {
   deriveRecommendedCandidateIds,
 } from '../app/dashboardSelection';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 describe('dashboard actions view model integration', () => {
+  it('keeps manual collect available when cloud summary is degraded', () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardActions, {
+        runId: 'uninitialized',
+        candidateRows: [],
+        selectedRows: [],
+        artifactLinks: [],
+        pushDigest: '今日还没有推送文稿。',
+        pushDecision: null,
+        pushExecution: null,
+        pushChannelStatuses: [],
+        recoveryAction: '',
+        recoverySelectedItemId: '',
+        cloudReady: false,
+      }),
+    );
+
+    expect(html).toContain('手动采集');
+    expect(html).toContain('当前无法读取现有云端运行数据');
+    expect(html).not.toContain('disabled="">手动采集');
+    expect(html).toContain('disabled="">一键执行推荐');
+  });
+
   it('applies recommended candidate ids in stable order', () => {
     expect(
       applyRecommendedSelection({
